@@ -14,7 +14,7 @@ except Exception as e:
     st.error(f"PostgreSQL database connection failed: {e}")
     st.stop()
 
-# Visual Styling Setup (Dashboard theme)
+# Visual Styling Setup
 st.markdown("""
 <style>
     .app-header {
@@ -42,6 +42,13 @@ st.markdown("""
         font-weight: 500;
         padding: 10px 16px;
     }
+    .cred-container {
+        border: 1px solid #cbd5e1;
+        background-color: #f8fafc;
+        padding: 16px;
+        border-radius: 8px;
+        margin-bottom: 12px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -56,23 +63,68 @@ def navigate_to(page_name):
     st.rerun()
 
 def check_pin_access():
+    """Renders dynamic first-run PIN setup and secure login gates."""
+    # 1. Dynamic Setup Screen: If no Master PIN has ever been set in the database
+    if not db.is_pin_configured():
+        st.subheader("🛠️ Setup Your Custom Master PIN")
+        st.write("No Master PIN has been configured. Please define a custom PIN to secure this application database.")
+        
+        show_setup_pin = st.checkbox("👁️ Show PIN Input Plaintext", value=False, key="show_setup_pin_toggle")
+        setup_input_type = "default" if show_setup_pin else "password"
+        
+        new_pin = st.text_input("Enter New Master PIN:", type=setup_input_type, key="setup_new_pin")
+        confirm_new_pin = st.text_input("Confirm New Master PIN:", type=setup_input_type, key="setup_confirm_pin")
+        
+        if st.button("Set Master PIN", use_container_width=True, type="primary"):
+            if len(new_pin) < 4:
+                st.error("PIN must be at least 4 characters long.")
+            elif new_pin != confirm_new_pin:
+                st.error("PIN confirmations do not match.")
+            else:
+                db.set_initial_pin(new_pin)
+                st.success("Master PIN successfully set! Please log in now.")
+                st.rerun()
+        return False
+
+    # 2. Dynamic Verification Login Screen (Driven strictly by the database set PIN value)
     if not st.session_state.authenticated:
         st.subheader("🔑 Access Security Verification")
-        input_pin = st.text_input("Enter Master PIN to continue:", type="password")
+        
+        # Checking this box disables browser autocompletion popups
+        show_pin = st.checkbox("👁️ Show PIN Input Plaintext (Prevents Autocomplete Overrides)", value=False, key="show_pin_toggle_gate")
+        input_type = "default" if show_pin else "password"
+
+        input_pin = st.text_input(
+            "Enter Security Code:", 
+            type=input_type, 
+            key="login_pin_input_field"
+        )
+        
         col_sub, col_back = st.columns(2)
         with col_sub:
-            if st.button("Submit PIN", use_container_width=True):
+            if st.button("Submit PIN", use_container_width=True, key="submit_pin_btn_gate"):
                 correct_pin = db.get_master_pin()
                 if input_pin == correct_pin:
                     st.session_state.authenticated = True
                     st.session_state.current_pin = input_pin
+                    st.session_state.pin_failed = False
                     st.success("Access Granted")
                     st.rerun()
                 else:
-                    st.error("Incorrect PIN entered.")
+                    st.session_state.pin_failed = True
         with col_back:
-            if st.button("Back to Menu", use_container_width=True):
+            if st.button("Back to Menu", use_container_width=True, key="back_pin_btn_gate"):
                 navigate_to('dashboard')
+        
+        # If the PIN fails, show an emergency recovery option to reset the database PIN back to '1234'
+        if st.session_state.get("pin_failed", False):
+            st.error("Incorrect PIN entered.")
+            st.info("💡 Stuck? If you have forgotten your PIN, use the recovery button below to force-reset your database Master PIN back to '1234'.")
+            if st.button("⚠️ Reset Database PIN to Default (1234)", use_container_width=True, key="emergency_pin_reset_button"):
+                db.update_master_pin("1234")
+                st.session_state.pin_failed = False
+                st.success("The database Master PIN has been reset to '1234'. Enter '1234' to access.")
+                st.rerun()
         return False
     return True
 
@@ -87,11 +139,11 @@ def render_dashboard():
         </div>
     """, unsafe_allow_html=True)
 
-    # View Passwords (Primary Action Button)
+    # 1. VIEW PASSWORD Top Button (Prompts for Master PIN, then opens credentials directory)
     if st.button("👁️ VIEW PASSWORD", use_container_width=True, type="primary"):
         navigate_to('view_passwords')
 
-    # Master Tables Section
+    # 2. Master Tables Section
     st.markdown('<div class="section-label">Master</div>', unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -104,7 +156,7 @@ def render_dashboard():
         if st.button("🏷️ Sub-Type", use_container_width=True):
             navigate_to('manage_subtypes')
 
-    # General Configuration Actions
+    # 3. General Configuration Actions
     st.markdown('<div class="section-label">General</div>', unsafe_allow_html=True)
     col4, col5, col6 = st.columns(3)
     with col4:
@@ -119,213 +171,67 @@ def render_dashboard():
 
     st.markdown("<br><br>", unsafe_allow_html=True)
     
-    # Bottom Utility Action
+    # 4. Bottom Utility Action (Clear Data)
     if st.button("⚠️ CLEAR DATA", use_container_width=True):
         navigate_to('clear_data')
 
 
-# Screen: Dynamic Unified Password Form & Multi-User Viewer
+# Screen: Isolated View Password Vault Directory
 def render_view_passwords():
-    st.title("🔑 Credentials Storage Engine")
+    st.title("🔑 Stored Credentials Directory")
     if not check_pin_access():
         return
 
     st.write("---")
     
-    # ------------------ STABLE UNIFIED RECORD FORM ------------------
-    st.subheader("📝 Save Password Profile")
-    st.write("Fill in the fields below. You can select existing master records or dynamically define new ones in a single step.")
-
-    # Retrieve current configurations
     users = db.get_users()
-    ptypes = db.get_password_types()
-
-    # Dropdown Options Lists
-    user_options = [u[1] for u in users] + ["➕ [Create New User Profile]"]
-    type_options = [t[1] for t in ptypes] + ["➕ [Create New Category Type]"]
-
-    # Form Fields
-    selected_user_opt = st.selectbox("Select User Profile", user_options)
-    
-    # If adding a user dynamically
-    new_user_name = ""
-    new_user_email = ""
-    if selected_user_opt == "➕ [Create New User Profile]":
-        col_u1, col_u2 = st.columns(2)
-        with col_u1:
-            new_user_name = st.text_input("New Username (e.g. User A)")
-        with col_u2:
-            new_user_email = st.text_input("New User Email")
-
-    # Category Type Selector
-    selected_type_opt = st.selectbox("Select Category Type", type_options)
-    
-    # If adding a Type dynamically
-    new_type_name = ""
-    if selected_type_opt == "➕ [Create New Category Type]":
-        new_type_name = st.text_input("New Category Type Name (e.g. Personal, Work)")
-
-    # Dynamic Sub-Type selector depending on Type Option
-    selected_subtype_opt = "None"
-    new_subtype_name = ""
-    
-    if selected_type_opt != "➕ [Create New Category Type]":
-        type_opts_dict = {t[1]: t[0] for t in ptypes}
-        curr_type_id = type_opts_dict.get(selected_type_opt)
-        
-        if curr_type_id:
-            sub_list = db.get_subtypes_by_type(curr_type_id)
-            sub_options = ["None"] + [s[1] for s in sub_list] + ["➕ [Create New Sub-Category]"]
-            selected_subtype_opt = st.selectbox("Select Sub-Category", sub_options)
-            
-            if selected_subtype_opt == "➕ [Create New Sub-Category]":
-                new_subtype_name = st.text_input("New Sub-Category Name (e.g. Google, GitHub)")
+    if not users:
+        st.warning("Please configure at least one active User Profile first.")
     else:
-        # If user is creating a new Category Type, they can enter a new Sub-Type directly too
-        new_subtype_name = st.text_input("Optional New Sub-Category Name (under the new Type)")
-
-    # Account Specific Details
-    st.write("#### Platform Login Details")
-    title = st.text_input("Account Platform Name (e.g. Gmail)")
-    acc_user = st.text_input("Account Login ID (Username/Email)")
-    acc_pass = st.text_input("Account Password (Plaintext)", type="password")
-
-    # Single Submit Button executing transaction cleanly
-    if st.button("🔒 Save Password Profile Securely", type="primary", use_container_width=True):
-        if title and acc_user and acc_pass:
-            # 1. Resolve User
-            final_user_id = None
-            if selected_user_opt == "➕ [Create New User Profile]":
-                if new_user_name and new_user_email:
-                    final_user_id = db.add_user(new_user_name.strip(), new_user_email.strip())
-                else:
-                    st.error("Please fill out both Username and Email for the new profile.")
-                    st.stop()
-            else:
-                user_opts_dict = {u[1]: u[0] for u in users}
-                final_user_id = user_opts_dict.get(selected_user_opt)
-
-            # 2. Resolve Category Type
-            final_type_id = None
-            if selected_type_opt == "➕ [Create New Category Type]":
-                if new_type_name:
-                    final_type_id = db.add_password_type(new_type_name.strip())
-                else:
-                    st.error("Please specify a Name for the new Category Type.")
-                    st.stop()
-            else:
-                type_opts_dict = {t[1]: t[0] for t in ptypes}
-                final_type_id = type_opts_dict.get(selected_type_opt)
-
-            # 3. Resolve Sub-Category (Subtype)
-            final_subtype_id = None
-            if final_type_id:
-                if selected_subtype_opt == "➕ [Create New Sub-Category]" or (selected_type_opt == "➕ [Create New Category Type]" and new_subtype_name):
-                    if new_subtype_name:
-                        final_subtype_id = db.add_password_subtype(final_type_id, new_subtype_name.strip())
-                elif selected_subtype_opt != "None":
-                    sub_list = db.get_subtypes_by_type(final_type_id)
-                    sub_opts_dict = {s[1]: s[0] for s in sub_list}
-                    final_subtype_id = sub_opts_dict.get(selected_subtype_opt)
-
-            # 4. Encrypt and save account credentials
-            encrypted_val = enc.encrypt_password(acc_pass, st.session_state.current_pin)
-            db.add_password(
-                user_id=final_user_id,
-                type_id=final_type_id,
-                subtype_id=final_subtype_id,
-                title=title.strip(),
-                username_or_email=acc_user.strip(),
-                encrypted_val=encrypted_val
-            )
-            st.success("Credentials stored successfully.")
-            st.rerun()
-        else:
-            st.error("Please complete Platform Name, Login ID, and Password to save.")
-
-    # ------------------ ISOLATED USER PROFILE VAULT VIEWER ------------------
-    st.markdown("---")
-    st.subheader("🔍 Filter Credentials View by User Profile")
-    
-    updated_users = db.get_users()
-    if updated_users:
-        view_user_opts = {u[1]: u[0] for u in updated_users}
-        view_user_name = st.selectbox("Select User Vault Profile to Display Below", list(view_user_opts.keys()), key="vault_user_filter")
+        view_user_opts = {u[1]: u[0] for u in users}
+        view_user_name = st.selectbox("Select User Profile context to view decrypted accounts", list(view_user_opts.keys()))
         view_user_id = view_user_opts[view_user_name]
         
-        st.markdown(f"Displaying stored credentials belonging to: **{view_user_name}**")
+        st.markdown(f"### Vault Directory for **{view_user_name}**")
         entries = db.get_passwords_by_user(view_user_id)
         
         if not entries:
-            st.info(f"No password records stored for User: {view_user_name}")
+            st.info(f"No password entries recorded for user profile: {view_user_name}")
         else:
             for ent in entries:
                 ent_id, u_name, t_name, st_name, title, user_or_email, enc_pass, u_id, t_id, st_id = ent
                 decrypted = enc.decrypt_password(enc_pass, st.session_state.current_pin)
                 
-                with st.container():
-                    st.markdown(f"#### {title}")
-                    st.text(f"Hierarchy Classification: {t_name or 'None'} -> {st_name or 'None'}")
-                    st.text(f"Login Username/Email: {user_or_email}")
-                    st.text(f"Decrypted Password: {decrypted}")
-                    
-                    # Update & Delete functionality for stored passwords
-                    col_up, col_del = st.columns(2)
-                    with col_up:
-                        with st.expander("✏️ Edit Record"):
-                            types_list = db.get_password_types()
-                            edit_types_opts = {t[1]: t[0] for t in types_list}
-                            type_index = list(edit_types_opts.values()).index(t_id) if t_id in edit_types_opts.values() else 0
-                            
-                            up_type_name = st.selectbox("Update Category Type", list(edit_types_opts.keys()), index=type_index, key=f"up_typ_{ent_id}")
-                            new_type_id = edit_types_opts[up_type_name]
-                            
-                            up_sub_list = db.get_subtypes_by_type(new_type_id)
-                            up_sub_id = None
-                            if up_sub_list:
-                                edit_sub_opts = {s[1]: s[0] for s in up_sub_list}
-                                sub_index = list(edit_sub_opts.values()).index(st_id) + 1 if (st_id and st_id in edit_sub_opts.values()) else 0
-                                up_sub_name = st.selectbox("Update Sub-Type", ["None"] + list(edit_sub_opts.keys()), index=sub_index, key=f"up_sub_{ent_id}")
-                                if up_sub_name != "None":
-                                    up_sub_id = edit_sub_opts[up_sub_name]
-                            
-                            new_title = st.text_input("Update Title", value=title, key=f"title_{ent_id}")
-                            new_user_or_email = st.text_input("Update Username", value=user_or_email, key=f"login_{ent_id}")
-                            new_raw_pass = st.text_input("Update Password", value=decrypted if not decrypted.startswith("[Decryption") else "", type="password", key=f"pass_{ent_id}")
-                            
-                            if st.button("Commit Changes", key=f"save_{ent_id}", use_container_width=True):
-                                new_enc = enc.encrypt_password(new_raw_pass, st.session_state.current_pin)
-                                db.update_password(
-                                    pass_id=ent_id,
-                                    user_id=view_user_id,
-                                    type_id=new_type_id,
-                                    subtype_id=up_sub_id,
-                                    title=new_title,
-                                    username_or_email=new_user_or_email,
-                                    encrypted_val=new_enc
-                                )
-                                st.success("Record updated successfully.")
-                                st.rerun()
-                    with col_del:
-                        if st.button("🗑️ Purge Record", key=f"del_{ent_id}", use_container_width=True):
-                            db.delete_password(ent_id)
-                            st.success("Record deleted successfully.")
-                            st.rerun()
-                st.markdown("---")
-    else:
-        st.info("No users registered in master database yet.")
+                # Containerized UI
+                field_label = st_name if st_name else "Username / Email"
+                st.markdown(f"""
+                <div class="cred-container">
+                    <h4>📂 {title}</h4>
+                    <p style="margin: 4px 0;"><b>Classification</b>: {t_name or 'None'} &rarr; {st_name or 'None'}</p>
+                    <p style="margin: 4px 0;"><b>{field_label}</b>: {user_or_email}</p>
+                    <p style="margin: 4px 0;"><b>Decrypted Password</b>: <code style="color: #0284c7;">{decrypted}</code></p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Delete option
+                if st.button(f"🗑️ Delete Account Entry - {title}", key=f"del_dir_{ent_id}"):
+                    db.delete_password(ent_id)
+                    st.success("Entry removed.")
+                    st.rerun()
+                st.markdown("<br>", unsafe_allow_html=True)
 
     if st.button("⬅️ Back to Dashboard", key="v_back", use_container_width=True):
         st.session_state.authenticated = False
         navigate_to('dashboard')
 
 
-# Screen: Manage Users (Add, Update, Delete)
+# Screen: Manage Users (Add, Update, Delete & Show Stored Passwords in Container)
 def render_manage_users():
     st.title("👤 Manage Users")
     
+    # 1. Add User Form
     with st.form("Add User Form"):
-        st.subheader("Create New User")
+        st.subheader("Add Profile")
         username = st.text_input("Username")
         email = st.text_input("Email")
         if st.form_submit_button("Save User"):
@@ -333,19 +239,18 @@ def render_manage_users():
                 try:
                     db.add_user(username, email)
                     st.success(f"Added User: {username}")
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Error registering user: {e}")
             else:
                 st.error("All user fields must be provided.")
 
-    st.subheader("Manage Active Profiles")
+    st.subheader("Update / Delete User Profiles")
     users = db.get_users()
     if not users:
         st.info("No active users present.")
     else:
-        df_users = pd.DataFrame(users, columns=["User ID", "Username", "Email Address"])
-        st.dataframe(df_users, use_container_width=True, hide_index=True)
-
+        # Selector for edits
         selected_user_id = st.selectbox("Select Profile to Modify", [u[0] for u in users], format_func=lambda x: f"ID: {x} - {[u[1] for u in users if u[0] == x][0]}")
         curr_u = [u for u in users if u[0] == selected_user_id][0]
         
@@ -364,31 +269,82 @@ def render_manage_users():
                 st.success("User purged.")
                 st.rerun()
 
+        # 2. "Show all passwords in user profile with container" Wireframe Integration
+        st.markdown("---")
+        st.subheader(f"💼 Stored Credentials Vault for {curr_u[1]}")
+        
+        # Check security access before showing unencrypted data in this master panel
+        unlock = st.checkbox("🔑 Unlock View Stored Credentials", key="unlock_master_user")
+        if unlock:
+            correct_pin = db.get_master_pin()
+            
+            show_pin_confirm = st.checkbox("👁️ Show Confirm PIN Input Plaintext", value=False, key="show_pin_toggle_confirm")
+            confirm_input_type = "default" if show_pin_confirm else "password"
+
+            pin_input = st.text_input("Confirm Master PIN to Decrypt", type=confirm_input_type, key="master_user_pin")
+            
+            if pin_input == correct_pin:
+                entries = db.get_passwords_by_user(selected_user_id)
+                if not entries:
+                    st.info(f"No credentials saved for user profile: {curr_u[1]}")
+                else:
+                    for ent in entries:
+                        ent_id, u_name, t_name, st_name, title, user_or_email, enc_pass, _, _, _ = ent
+                        decrypted = enc.decrypt_password(enc_pass, pin_input)
+                        
+                        # Container Box
+                        st.markdown(f"**Platform Title: {title}**")
+                        field_label = st_name if st_name else "Username / Email"
+                        st.markdown(f"""
+                        <div class="cred-container">
+                            <h5>📂 Platform: {title}</h5>
+                            <p style="margin: 2px 0;"><b>Type Hierarchy</b>: {t_name or 'None'} &rarr; {st_name or 'None'}</p>
+                            <p style="margin: 2px 0;"><b>{field_label}</b>: {user_or_email}</p>
+                            <p style="margin: 2px 0;"><b>Decrypted Password</b>: <code style="color: #0284c7;">{decrypted}</code></p>
+                        </div>
+                        """, unsafe_allow_html=True)
+            elif pin_input:
+                st.error("Invalid Master PIN.")
+
     if st.button("⬅️ Back to Dashboard", use_container_width=True):
         navigate_to('dashboard')
 
 
-# Screen: Manage Types (Add, Update, Delete)
+# Screen: Manage Types (Show User with Dropdown and Select Password Type)
 def render_manage_types():
     st.title("📁 Manage Categories (Types)")
     
+    users = db.get_users()
+    if not users:
+        st.warning("Please configure at least one active User Profile first.")
+        if st.button("⬅️ Back to Dashboard", use_container_width=True):
+            navigate_to('dashboard')
+        return
+
+    # 1. "Show user with dropdown" Integration
+    user_opts = {u[1]: u[0] for u in users}
+    selected_user = st.selectbox("Select User Profile to Manage Types For", list(user_opts.keys()), key="type_user_scope")
+    active_user_id = user_opts[selected_user]
+
+    # 2. Select, create, update, or delete types scoped directly to the selected User
     with st.form("Add Type Form"):
-        st.subheader("Create New Category Type")
-        name = st.text_input("Type Name (e.g., Enterprise, Personal)")
-        if st.form_submit_button("Save Type"):
+        st.subheader(f"Create New Category Type under {selected_user}")
+        name = st.text_input("Category Type Name (e.g. Enterprise, Personal)")
+        if st.form_submit_button("Save Category Type"):
             if name:
                 try:
-                    db.add_password_type(name)
+                    db.add_password_type(active_user_id, name)
                     st.success(f"Category added: {name}")
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Failed to add: {e}")
             else:
                 st.error("Please enter a category name.")
 
-    st.subheader("Active Category Types")
-    types = db.get_password_types()
+    st.subheader(f"Active Category Types belonging to: {selected_user}")
+    types = db.get_password_types_by_user(active_user_id)
     if not types:
-        st.info("No types found.")
+        st.info(f"No custom category types defined for {selected_user}.")
     else:
         df_types = pd.DataFrame(types, columns=["Type ID", "Category Label"])
         st.dataframe(df_types, use_container_width=True, hide_index=True)
@@ -414,64 +370,131 @@ def render_manage_types():
         navigate_to('dashboard')
 
 
-# Screen: Manage Sub-types (Add, Update, Delete)
+# Screen: Manage Sub-types (Show user with dropdown, select type, sub-type, and save account password)
 def render_manage_subtypes():
     st.title("🏷️ Manage Sub-Categories (Sub-types)")
     
-    types = db.get_password_types()
+    users = db.get_users()
+    if not users:
+        st.warning("Please configure at least one active User Profile first.")
+        if st.button("⬅️ Back to Dashboard", use_container_width=True):
+            navigate_to('dashboard')
+        return
+
+    # 1. "Show user with dropdown" Integration
+    user_opts = {u[1]: u[0] for u in users}
+    selected_user = st.selectbox("Select User Profile context", list(user_opts.keys()), key="subtype_user_scope")
+    
+    # Dynamically resolve User ID from database to prevent cached-state ForeignKeyViolation
+    active_user_id = db.get_user_id_by_name(selected_user)
+
+    types = db.get_password_types_by_user(active_user_id) if active_user_id else []
     if not types:
-        st.warning("Please configure at least one active Category Type first.")
+        st.warning(f"Please configure at least one active Category Type for {selected_user} first.")
     else:
         type_opts = {t[1]: t[0] for t in types}
+        selected_type = st.selectbox(f"Select Category Type (Belonging to {selected_user})", list(type_opts.keys()))
+        active_type_id = type_opts[selected_type]
         
+        # CRUD for Sub-types scoped under Type
         with st.form("Add Subtype Form"):
-            st.subheader("Create New Sub-Category")
-            parent_type = st.selectbox("Select Parent Category", list(type_opts.keys()))
-            sub_name = st.text_input("Sub-Category Label (e.g., Slack, GitHub)")
+            st.subheader(f"Add New Sub-Category under '{selected_type}' for '{selected_user}'")
+            sub_name = st.text_input("Sub-Category Label (e.g. AWS, Steam)")
             if st.form_submit_button("Save Sub-Category"):
-                if sub_name:
+                if sub_name and active_user_id:
                     try:
-                        db.add_password_subtype(type_opts[parent_type], sub_name)
-                        st.success(f"Added {sub_name} to category {parent_type}")
+                        db.add_password_subtype(active_user_id, active_type_id, sub_name)
+                        st.success(f"Added {sub_name} under category '{selected_type}'")
+                        st.rerun()
                     except Exception as e:
-                        st.error(f"Database error writing structure: {e}")
+                        st.error(f"Error writing: {e}")
                 else:
                     st.error("Please enter a sub-category label.")
 
-    st.subheader("Active Sub-Category Hierarchies")
-    subtypes = db.get_password_subtypes()
-    if not subtypes:
-        st.info("No sub-category relationships found.")
-    else:
-        df_subtypes = pd.DataFrame(subtypes, columns=["Subtype ID", "Type ID", "Parent Category", "Sub-Category Label"])
-        st.dataframe(df_subtypes[["Subtype ID", "Parent Category", "Sub-Category Label"]], use_container_width=True, hide_index=True)
+        st.subheader(f"Active Sub-Categories under '{selected_type}'")
+        sub_list = db.get_subtypes_by_type(active_type_id)
+        if not sub_list:
+            st.info("No sub-categories configured yet.")
+        else:
+            df_subtypes = pd.DataFrame(sub_list, columns=["Subtype ID", "Sub-Category Label"])
+            st.dataframe(df_subtypes, use_container_width=True, hide_index=True)
 
-        selected_sub_id = st.selectbox("Select Sub-Category to Modify", [s[0] for s in subtypes], format_func=lambda x: f"ID: {x} - {[f'{s[2]} -> {s[3]}' for s in subtypes if s[0] == x][0]}")
-        curr_st = [s for s in subtypes if s[0] == selected_sub_id][0]
-        
-        type_keys = list(type_opts.keys())
-        type_index = type_keys.index(curr_st[2]) if curr_st[2] in type_keys else 0
-        
-        up_parent = st.selectbox("Change Parent Category", type_keys, index=type_index)
-        up_subname = st.text_input("Change Sub-Category Name", value=curr_st[3])
+            selected_sub_id = st.selectbox("Select Sub-Category to Modify", [s[0] for s in sub_list], format_func=lambda x: f"ID: {x} - {[s[1] for s in sub_list if s[0] == x][0]}")
+            curr_st = [s for s in sub_list if s[0] == selected_sub_id][0]
+            
+            up_subname = st.text_input("Change Sub-Category Name", value=curr_st[1])
+            
+            col_up, col_del = st.columns(2)
+            with col_up:
+                if st.button("Update Mapping", use_container_width=True):
+                    db.update_password_subtype(selected_sub_id, active_type_id, up_subname)
+                    st.success("Mapping updated.")
+                    st.rerun()
+            with col_del:
+                if st.button("Delete Mapping", use_container_width=True):
+                    db.delete_password_subtype(selected_sub_id)
+                    st.success("Mapping removed.")
+                    st.rerun()
 
-        col_up, col_del = st.columns(2)
-        with col_up:
-            if st.button("Update Mapping", use_container_width=True):
-                db.update_password_subtype(selected_sub_id, type_opts[up_parent], up_subname)
-                st.success("Mapping updated.")
-                st.rerun()
-        with col_del:
-            if st.button("Delete Mapping", use_container_width=True):
-                db.delete_password_subtype(selected_sub_id)
-                st.success("Mapping removed.")
-                st.rerun()
+        # 2. "and save any account password" Direct Panel Wireframe Integration
+        st.markdown("---")
+        st.subheader(f"🔒 Directly Save New Account Password for {selected_user}")
+        st.write(f"Save a password securely linked to **{selected_user}** &rarr; **{selected_type}**")
+        
+        # Sub-type dropdown
+        sub_options = ["None"] + [s[1] for s in sub_list] if sub_list else ["None"]
+        save_sub_opt = st.selectbox("Assign Sub-Category for Saved Password", sub_options, key="direct_save_sub_opt")
+        
+        # Account Specific Details
+        title = st.text_input("Account/Service Title (e.g. Gmail)")
+        acc_user = st.text_input("Account Username/Email")
+        
+        show_pin_direct = st.checkbox("👁️ Show Password Confirm PIN Input Plaintext", value=False, key="show_pin_toggle_direct")
+        direct_input_type = "default" if show_pin_direct else "password"
+        acc_pass = st.text_input("Account Password (Plaintext)", type=direct_input_type)
+        
+        # 3. Form-level Pin verification
+        pin_verify = st.text_input("Enter Master PIN to Authorize Encryption:", type=direct_input_type, key="direct_save_pin_verify_field")
+
+        if st.button("Encrypt & Save Credentials to Vault", use_container_width=True):
+            if title and acc_user and acc_pass and pin_verify:
+                pin_val = db.get_master_pin()
+                if pin_verify == pin_val:
+                    # Dynamically resolve fresh, valid IDs to avoid KeyForeignKeyViolation
+                    resolved_user_id = db.get_user_id_by_name(selected_user)
+                    resolved_type_id = db.get_type_id_by_name(resolved_user_id, selected_type)
+                    
+                    resolved_subtype_id = None
+                    if save_sub_opt != "None" and sub_list:
+                        resolved_subtype_id = db.get_subtype_id_by_name(resolved_type_id, save_sub_opt)
+
+                    if resolved_user_id is None:
+                        st.error("Error: Selected user profile no longer exists. Please refresh.")
+                    elif resolved_type_id is None:
+                        st.error("Error: Selected category type no longer exists. Please refresh.")
+                    else:
+                        # Encrypt and write cleanly to passwords table referencing the fresh IDs
+                        encrypted_val = enc.encrypt_password(acc_pass, pin_verify)
+                        db.add_password(
+                            user_id=resolved_user_id,
+                            type_id=resolved_type_id,
+                            subtype_id=resolved_subtype_id,
+                            title=title.strip(),
+                            username_or_email=acc_user.strip(),
+                            encrypted_val=encrypted_val
+                        )
+                        st.success("Credentials saved to vault successfully.")
+                        st.rerun()
+                else:
+                    st.error("Incorrect PIN confirmation.")
+            else:
+                st.error("Platform title, account username, and password fields are required.")
 
     if st.button("⬅️ Back to Dashboard", use_container_width=True):
         navigate_to('dashboard')
 
 
-# Screen: Reset PIN
+# Screen: Reset PIN (set Reset PIN of app)
 def render_reset_pin():
     st.title("🔑 Reset Master PIN")
     
@@ -497,13 +520,13 @@ def render_reset_pin():
         navigate_to('dashboard')
 
 
-# Screen: Export Password
+# Screen: Export Password (click this button and save all password with file download)
 def render_export_passwords():
     st.title("📥 Export Credentials")
     if not check_pin_access():
         return
 
-    st.info("Compiles and decrypts stored database passwords into a plain CSV file.")
+    st.info("Compiles and decrypts stored database passwords into a downloadable CSV file.")
     
     if st.button("Generate Export Document", use_container_width=True):
         entries = db.get_passwords()
@@ -542,7 +565,7 @@ def render_export_passwords():
         navigate_to('dashboard')
 
 
-# Screen: Import Password
+# Screen: Import Password (click this button and save all password file save in this app)
 def render_import_passwords():
     st.title("📤 Import Credentials")
     if not check_pin_access():
@@ -573,15 +596,15 @@ def render_import_passwords():
                     # Insert missing Users automatically
                     u_id = db.add_user(str(username_val).strip(), f"{str(username_val).strip().lower()}@example.com")
 
-                    # Handle Category Type mapping
+                    # Handle Category Type mapping under this dynamic User
                     t_id = None
                     if not pd.isna(cat_type) and str(cat_type).strip() != "":
-                        t_id = db.add_password_type(str(cat_type).strip())
+                        t_id = db.add_password_type(u_id, str(cat_type).strip())
 
-                    # Handle Sub-Category mapping
+                    # Handle Sub-Category mapping under this dynamic User & Type
                     st_id = None
                     if t_id and not pd.isna(subtype_val) and str(subtype_val).strip() != "":
-                        st_id = db.add_password_subtype(t_id, str(subtype_val).strip())
+                        st_id = db.add_password_subtype(u_id, t_id, str(subtype_val).strip())
 
                     # Encrypt the incoming password
                     enc_val = enc.encrypt_password(str(raw_pass).strip(), st.session_state.current_pin)
@@ -605,7 +628,7 @@ def render_import_passwords():
         navigate_to('dashboard')
 
 
-# Screen: Clear Data
+# Screen: Clear Data (clear data)
 def render_clear_data():
     st.title("⚠️ Wipe Database Store")
     st.warning("Warning: This destroys all configuration histories (Users, Types, Sub-types, Passwords).")

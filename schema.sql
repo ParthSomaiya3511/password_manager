@@ -11,15 +11,18 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL
 );
 
--- Password Type Master Table (e.g., Social, Work, Banking)
+-- Category Types (Strictly scoped per user)
 CREATE TABLE IF NOT EXISTS password_types (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) UNIQUE NOT NULL
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    CONSTRAINT unique_user_type UNIQUE (user_id, name)
 );
 
--- Password Sub-type Master Table (e.g., Google, Slack under 'Work')
+-- Sub-types (Strictly scoped per user and parent category type)
 CREATE TABLE IF NOT EXISTS password_subtypes (
     id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
     type_id INT REFERENCES password_types(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     CONSTRAINT unique_type_subtype UNIQUE (type_id, name)
