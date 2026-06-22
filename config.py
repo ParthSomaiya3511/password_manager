@@ -1,7 +1,6 @@
 import os
 import psycopg2
 
-# Configure your connection credentials here
 DB_HOST = os.environ.get("DB_HOST", "localhost")
 DB_PORT = os.environ.get("DB_PORT", "5432")
 DB_NAME = os.environ.get("DB_NAME", "password_manager_db")
