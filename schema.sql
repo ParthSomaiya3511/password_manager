@@ -1,14 +1,17 @@
+-- Application configuration (e.g., Master PIN)
 CREATE TABLE IF NOT EXISTS app_settings (
     key VARCHAR(50) PRIMARY KEY,
     value VARCHAR(255) NOT NULL
 );
 
+-- Users Table
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(100) UNIQUE NOT NULL,
     email VARCHAR(255) NOT NULL
 );
 
+-- Category Types (Strictly scoped per user)
 CREATE TABLE IF NOT EXISTS password_types (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -16,6 +19,7 @@ CREATE TABLE IF NOT EXISTS password_types (
     CONSTRAINT unique_user_type UNIQUE (user_id, name)
 );
 
+-- Sub-types (Strictly scoped per user and parent category type)
 CREATE TABLE IF NOT EXISTS password_subtypes (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -24,6 +28,7 @@ CREATE TABLE IF NOT EXISTS password_subtypes (
     CONSTRAINT unique_type_subtype UNIQUE (type_id, name)
 );
 
+-- Passwords Table
 CREATE TABLE IF NOT EXISTS passwords (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
