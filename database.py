@@ -82,7 +82,7 @@ def init_db():
     run_query("ALTER TABLE password_subtypes DROP CONSTRAINT IF EXISTS unique_type_subtype;")
     run_query("ALTER TABLE password_subtypes ADD CONSTRAINT unique_type_subtype UNIQUE (type_id, name);")
 
-    # passwords
+    # passwords columns dynamic migrations
     run_query("ALTER TABLE passwords ADD COLUMN IF NOT EXISTS user_id INT REFERENCES users(id) ON DELETE CASCADE;")
     run_query("ALTER TABLE passwords ADD COLUMN IF NOT EXISTS type_id INT REFERENCES password_types(id) ON DELETE SET NULL;")
     run_query("ALTER TABLE passwords ADD COLUMN IF NOT EXISTS subtype_id INT REFERENCES password_subtypes(id) ON DELETE SET NULL;")
