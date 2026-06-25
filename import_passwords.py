@@ -32,18 +32,30 @@ def render_import_passwords(check_pin_access):
                         if pd.isna(username_val) or pd.isna(title) or pd.isna(acc_user) or pd.isna(raw_pass):
                             continue
 
-                        u_id = db.add_user(str(username_val).strip(), f"{str(username_val).strip().lower()}@example.com")
+                        # Lookup or insert User dynamically to bypass stale state and ForeignKey constraints
+                        user_name_clean = str(username_val).strip()
+                        u_id = db.get_user_id_by_name(user_name_clean)
+                        if not u_id:
+                            u_id = db.add_user(user_name_clean, f"{user_name_clean.lower().replace(' ', '')}@example.com")
 
+                        # Lookup or insert Category Type dynamically under active user scope
                         t_id = None
                         if not pd.isna(cat_type) and str(cat_type).strip() != "":
-                            t_id = db.add_password_type(u_id, str(cat_type).strip())
+                            cat_type_clean = str(cat_type).strip()
+                            t_id = db.get_type_id_by_name(u_id, cat_type_clean)
+                            if not t_id:
+                                t_id = db.add_password_type(u_id, cat_type_clean)
 
+                        # Lookup or insert Sub-Category Type dynamically under active user and type scope
                         st_id = None
                         if t_id and not pd.isna(subtype_val) and str(subtype_val).strip() != "":
-                            st_id = db.add_password_subtype(u_id, t_id, str(subtype_val).strip())
+                            sub_type_clean = str(subtype_val).strip()
+                            st_id = db.get_subtype_id_by_name(t_id, sub_type_clean)
+                            if not st_id:
+                                st_id = db.add_password_subtype(u_id, t_id, sub_type_clean)
 
+                        # Encrypt and save credential cleanly
                         enc_val = enc.encrypt_password(str(raw_pass).strip(), st.session_state.current_pin)
-                        
                         db.add_password(
                             user_id=u_id,
                             type_id=t_id,

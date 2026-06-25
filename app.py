@@ -2,28 +2,36 @@ import streamlit as st
 import pandas as pd
 import io
 import time
+import sys
+import importlib
+
+# import connection and modules
 import database as db
 import encryption as enc
 
-# Import multi-page files
+# ૧. ઓટોમેટીક મોડ્યુલ રીલોડર - રન ટાઇમ ચેન્જીસ અપ્લાય કરવા માટે
+for module_name in ['database', 'encryption', 'manage_users', 'manage_types', 'manage_subtypes', 'view_passwords', 'reset_pin', 'export_passwords', 'import_passwords', 'clear_data']:
+    if module_name in sys.modules:
+        importlib.reload(sys.modules[module_name])
+
+# Import multi-page files cleanly
 import view_passwords
 import manage_users
-import manage_types as type_page # 'type' is a Python keyword, so we import as type_page
+import manage_types as type_page
 import manage_subtypes
 import reset_pin
 import export_passwords
 import import_passwords
 import clear_data
 
-# Base Configuration
+# Base Page Configuration
 st.set_page_config(page_title="Password Manager", layout="centered")
 
-# Optimize database startup by caching resources (eliminates the page-refresh blank screen)
+# Optimize database startup by caching resources
 @st.cache_resource(show_spinner=False)
 def bootstrap_database():
     db.init_db()
 
-# Run the cached boostrap with a clean inline visual loader
 try:
     with st.spinner("Establishing secure connection to database..."):
         bootstrap_database()
@@ -34,7 +42,7 @@ except Exception as e:
 # Visual Styling Setup
 st.markdown("""
 <style>
-    /* Global Screen-Level Centered Frosted Backdrop Spinner Overlay */
+    /* Full-screen Centered Frosted Backdrop Spinner Overlay */
     div[data-testid="stSpinner"] {
         position: fixed !important;
         top: 0 !important;
@@ -63,12 +71,15 @@ st.markdown("""
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        z-index: 99999999 !important; /* Sits directly over active popup */
+        z-index: 99999999 !important; /* Sits directly over active popup contents */
     }
     
-    /* Dialog/Popup Spacing Correction (Prevents input elements and labels overlapping) */
+    /* Dialog/Popup Spacing Correction */
     div[data-testid="stDialog"] {
         padding: 24px !important;
+        border-radius: 16px !important;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15) !important;
     }
     div[data-testid="stDialog"] .stTextInput {
         margin-bottom: 14px !important;
@@ -306,7 +317,7 @@ elif st.session_state.page == 'manage_users':
 elif st.session_state.page == 'manage_types':
     type_page.render_manage_types()
 elif st.session_state.page == 'manage_subtypes':
-    manage_subtypes.render_manage_subtypes()
+    manage_subtypes.render_manage_subtypes(check_pin_access)
 elif st.session_state.page == 'reset_pin':
     reset_pin.render_reset_pin()
 elif st.session_state.page == 'export_passwords':
