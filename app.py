@@ -39,7 +39,7 @@ except Exception as e:
     st.error(f"PostgreSQL database connection failed: {e}")
     st.stop()
 
-# Visual Styling Setup
+# Visual Styling Setup (નાની બ્લેક રીંગને સંપૂર્ણપણે રીમુવ કરવા માટે)
 st.markdown("""
 <style>
     /* Full-screen Centered Frosted Backdrop Spinner Overlay */
@@ -93,6 +93,13 @@ st.markdown("""
         display: none !important;
     }
     
+    /* Strip borders & custom loops of Streamlit's default gray rotating spinner */
+    div[data-testid="stSpinner"] div {
+        border-color: transparent !important;
+        border-width: 0px !important;
+        border: none !important;
+    }
+    
     /* Borderless, Transparent Loader Container */
     div[data-testid="stSpinner"] > div {
         background-color: transparent !important;
@@ -111,14 +118,14 @@ st.markdown("""
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     }
     
-    /* Premium Minimalistic Circular Rotating Spinner */
+    /* Premium Minimalistic Circular Rotating Spinner - ONLY Premium Blue Arc is drawn */
     div[data-testid="stSpinner"] > div::before {
         content: "" !important;
         display: block !important;
         width: 64px !important;
         height: 64px !important;
-        border: 4px solid rgba(59, 130, 246, 0.1) !important; /* Soft guiding base ring */
-        border-top: 4px solid #3b82f6 !important;           /* Premium Blue rotating arc */
+        border: 4px solid transparent !important; /* Completely transparent base ring - removes dark/gray tracks */
+        border-top: 4px solid #3b82f6 !important;   /* Only show the rotating blue arc */
         border-radius: 50% !important;
         animation: spinner-rotate 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite !important;
     }
