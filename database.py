@@ -82,7 +82,7 @@ def init_db():
     run_query("ALTER TABLE password_subtypes DROP CONSTRAINT IF EXISTS unique_type_subtype;")
     run_query("ALTER TABLE password_subtypes ADD CONSTRAINT unique_type_subtype UNIQUE (type_id, name);")
 
-    # passwords
+    # passwords columns dynamic migrations
     run_query("ALTER TABLE passwords ADD COLUMN IF NOT EXISTS user_id INT REFERENCES users(id) ON DELETE CASCADE;")
     run_query("ALTER TABLE passwords ADD COLUMN IF NOT EXISTS type_id INT REFERENCES password_types(id) ON DELETE SET NULL;")
     run_query("ALTER TABLE passwords ADD COLUMN IF NOT EXISTS subtype_id INT REFERENCES password_subtypes(id) ON DELETE SET NULL;")
@@ -204,7 +204,7 @@ def add_user(username: str, email: str) -> int:
 def get_users():
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, username, email FROM users ORDER BY username ASC;")
+    cur.execute("SELECT id, username, email FROM users ORDER BY id ASC;")
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -258,7 +258,7 @@ def get_password_types():
 def get_password_types_by_user(user_id: int):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, name FROM password_types WHERE user_id = %s ORDER BY name ASC;", (user_id,))
+    cur.execute("SELECT id, name FROM password_types WHERE user_id = %s ORDER BY id ASC;", (user_id,))
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -313,7 +313,7 @@ def get_password_subtypes():
 def get_subtypes_by_type(type_id: int):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, name FROM password_subtypes WHERE type_id = %s ORDER BY name ASC;", (type_id,))
+    cur.execute("SELECT id, name FROM password_subtypes WHERE type_id = %s ORDER BY id ASC;", (type_id,))
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -354,7 +354,7 @@ def get_passwords():
         SELECT p.id, u.username, pt.name as type_name, pst.name as subtype_name, 
                p.title, p.username_or_email, p.encrypted_password, p.user_id, p.type_id, p.subtype_id
         FROM passwords p
-        JOIN users u ON p.user_id = u.id
+        LEFT JOIN users u ON p.user_id = u.id
         LEFT JOIN password_types pt ON p.type_id = pt.id
         LEFT JOIN password_subtypes pst ON p.subtype_id = pst.id
         ORDER BY p.title ASC;
@@ -371,12 +371,48 @@ def get_passwords_by_user(user_id: int):
         SELECT p.id, u.username, pt.name as type_name, pst.name as subtype_name, 
                p.title, p.username_or_email, p.encrypted_password, p.user_id, p.type_id, p.subtype_id
         FROM passwords p
-        JOIN users u ON p.user_id = u.id
+        LEFT JOIN users u ON p.user_id = u.id
         LEFT JOIN password_types pt ON p.type_id = pt.id
         LEFT JOIN password_subtypes pst ON p.subtype_id = pst.id
         WHERE p.user_id = %s
         ORDER BY p.title ASC;
     """, (user_id,))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return rows
+
+def get_passwords_by_type(user_id: int, type_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT p.id, u.username, pt.name as type_name, pst.name as subtype_name, 
+               p.title, p.username_or_email, p.encrypted_password, p.user_id, p.type_id, p.subtype_id
+        FROM passwords p
+        LEFT JOIN users u ON p.user_id = u.id
+        LEFT JOIN password_types pt ON p.type_id = pt.id
+        LEFT JOIN password_subtypes pst ON p.subtype_id = pst.id
+        WHERE p.user_id = %s AND p.type_id = %s
+        ORDER BY p.title ASC;
+    """, (user_id, type_id))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return rows
+
+def get_passwords_by_subtype(user_id: int, subtype_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT p.id, u.username, pt.name as type_name, pst.name as subtype_name, 
+               p.title, p.username_or_email, p.encrypted_password, p.user_id, p.type_id, p.subtype_id
+        FROM passwords p
+        LEFT JOIN users u ON p.user_id = u.id
+        LEFT JOIN password_types pt ON p.type_id = pt.id
+        LEFT JOIN password_subtypes pst ON p.subtype_id = pst.id
+        WHERE p.user_id = %s AND p.subtype_id = %s
+        ORDER BY p.title ASC;
+    """, (user_id, subtype_id))
     rows = cur.fetchall()
     cur.close()
     conn.close()

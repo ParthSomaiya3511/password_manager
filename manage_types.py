@@ -3,14 +3,23 @@ import pandas as pd
 import database as db
 import time
 
+# Modal: Delete Category Popup (સેન્ટ્રલ ડાયલોગ પોપઅપ - લોડર વગર ઇન્સ્ટન્ટ ડીલીટ ફ્લો)
+@st.dialog("⚠️ Delete Category Type")
+def show_delete_popup(type_id, name):
+    st.write(f"Are you sure you want to permanently delete category **{name}**? This will remove all associated sub-types and credentials.")
+    col_yes, col_no = st.columns(2)
+    with col_yes:
+        if st.button("Yes, Delete", use_container_width=True, type="primary"):
+            # ઇન્સ્ટન્ટ ડેટાબેઝ ડીલીટ ક્વેરી એક્ઝિક્યુશન (લોડર વગર)
+            db.delete_password_type(type_id)
+            st.success("Category deleted successfully.")
+            st.rerun()
+    with col_no:
+        if st.button("Cancel", use_container_width=True):
+            st.rerun()
+
 def render_manage_types():
-    st.markdown("""
-        <div style="text-align: center; margin-bottom: 20px;">
-            <span style="font-size: 3rem;">📁</span>
-            <h2 style="margin: 0; color: #1e293b; font-weight: 700;">Manage Categories (Types)</h2>
-            <p style="color: #64748b; font-size: 0.95rem;">Configure user-specific password category groups</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.title("📁 Manage Categories (Types)")
     
     users = db.get_users()
     if not users:
@@ -28,57 +37,31 @@ def render_manage_types():
     # Initialize page-level toggle states
     if 'show_add_type' not in st.session_state:
         st.session_state.show_add_type = False
-    if 'show_edit_type' not in st.session_state:
-        st.session_state.show_edit_type = False
-    if 'show_delete_type' not in st.session_state:
-        st.session_state.show_delete_type = False
+        
+    # State-driven trigger for Delete Popup
+    if 'delete_type_triggered' not in st.session_state:
+        st.session_state.delete_type_triggered = False
+    if 'delete_type_id' not in st.session_state:
+        st.session_state.delete_type_id = None
+    if 'delete_type_name' not in st.session_state:
+        st.session_state.delete_type_name = None
 
-    types = db.get_password_types_by_user(active_user_id)
+    # ➕ Rectangular Add Button (Toggles on-page container directly below)
+    add_label = "❌ Close Add Panel" if st.session_state.show_add_type else "➕ Add New Category Type"
+    if st.button(add_label, use_container_width=True, type="primary"):
+        st.session_state.show_add_type = not st.session_state.show_add_type
+        st.rerun()
 
-    # Control Grid Row (Premium Button Layout)
-    col_btn1, col_btn2, col_btn3 = st.columns(3)
-    with col_btn1:
-        add_label = "❌ Close Add Panel" if st.session_state.show_add_type else "➕ Add New Category"
-        if st.button(add_label, use_container_width=True, type="primary"):
-            st.session_state.show_add_type = not st.session_state.show_add_type
-            st.session_state.show_edit_type = False
-            st.session_state.show_delete_type = False
-            st.rerun()
-            
-    with col_btn2:
-        edit_label = "❌ Close Edit Panel" if st.session_state.show_edit_type else "✏️ Edit Category Type"
-        if st.button(edit_label, use_container_width=True):
-            if not types:
-                st.warning("No category types available to edit.")
-            else:
-                st.session_state.show_edit_type = not st.session_state.show_edit_type
-                st.session_state.show_add_type = False
-                st.session_state.show_delete_type = False
-                st.rerun()
-                
-    with col_btn3:
-        del_label = "❌ Close Delete Panel" if st.session_state.show_delete_type else "🗑️ Delete Category Type"
-        if st.button(del_label, use_container_width=True):
-            if not types:
-                st.warning("No category types available to delete.")
-            else:
-                st.session_state.show_delete_type = not st.session_state.show_delete_type
-                st.session_state.show_add_type = False
-                st.session_state.show_edit_type = False
-                st.rerun()
-
-    # --- DYNAMIC ON-PAGE CONTAINERS ---
-
-    # 1. ADD CONTAINER
+    # --- DYNAMIC ON-PAGE ADD CONTAINER ---
     if st.session_state.show_add_type:
         with st.container(border=True):
             st.subheader(f"Create New Category Type under {selected_user}")
-            name = st.text_input("Category Type Name (e.g. Enterprise, Personal)")
+            name = st.text_input("Category Type Name (e.g. Enterprise, Personal)", placeholder="Enter category type name...")
             if st.button("Save Category Type", use_container_width=True, type="primary"):
                 if name:
                     try:
                         with st.spinner("Saving Category Type..."):
-                            db.add_password_type(active_user_id, name)
+                            db.add_password_type(active_user_id, name.strip())
                             time.sleep(2.0)
                         st.success(f"Category added: {name}")
                         st.session_state.show_add_type = False
@@ -88,61 +71,65 @@ def render_manage_types():
                 else:
                     st.error("Please enter a category name.")
 
-    # 2. EDIT CONTAINER
-    if st.session_state.show_edit_type and types:
-        with st.container(border=True):
-            st.subheader(f"Edit Category Type (Belonging to {selected_user})")
-            selected_type_edit = st.selectbox(
-                "Select Type to Modify", 
-                types, 
-                format_func=lambda x: f"ID {x[0]} - {x[1]}",
-                key="type_edit_selectbox"
-            )
-            up_name = st.text_input("Edit Category Label", value=selected_type_edit[1])
-            if st.button("Save Changes", use_container_width=True, type="primary"):
-                if up_name:
-                    with st.spinner("Saving changes..."):
-                        db.update_password_type(selected_type_edit[0], up_name)
-                        time.sleep(2.0)
-                    st.success("Category updated successfully.")
-                    st.session_state.show_edit_type = False
-                    st.rerun()
-                else:
-                    st.error("Please fill in all fields.")
+    types = db.get_password_types_by_user(active_user_id)
 
-    # 3. DELETE CONTAINER
-    if st.session_state.show_delete_type and types:
-        with st.container(border=True):
-            st.subheader(f"Delete Category Type (Belonging to {selected_user})")
-            selected_type_del = st.selectbox(
-                "Select Type to Delete", 
-                types, 
-                format_func=lambda x: f"ID {x[0]} - {x[1]}",
-                key="type_del_selectbox"
-            )
-            st.write(f"Are you sure you want to permanently delete category **{selected_type_del[1]}**? This will remove all associated sub-types and credentials.")
-            
-            col_del_yes, col_del_no = st.columns(2)
-            with col_del_yes:
-                if st.button("Yes, Delete", use_container_width=True, type="primary"):
-                    with st.spinner("Deleting category..."):
-                        db.delete_password_type(selected_type_del[0])
-                        time.sleep(2.0)
-                    st.success("Category deleted successfully.")
-                    st.session_state.show_delete_type = False
-                    st.rerun()
-            with col_del_no:
-                if st.button("Cancel", use_container_width=True):
-                    st.session_state.show_delete_type = False
-                    st.rerun()
-
-    # --- CATEGORY DIRECTORY TABLE ---
+    # --- CATEGORY ACTION-GRID DIRECTORY ---
     st.markdown(f'<div class="section-label">Active Category Types belonging to: {selected_user}</div>', unsafe_allow_html=True)
     if not types:
         st.info(f"No custom category types defined for {selected_user}.")
     else:
-        df_types = pd.DataFrame(types, columns=["Type ID", "Category Label"])
-        st.dataframe(df_types, use_container_width=True, hide_index=True)
+        # Header Row
+        st.markdown("""
+            <div style="font-weight: 700; color: #475569; padding-bottom: 8px; border-bottom: 1px solid #cbd5e1; margin-bottom: 12px;">
+                <div style="display: flex;">
+                    <div style="width: 20%;">Type ID</div>
+                    <div style="width: 65%;">Category Label</div>
+                    <div style="width: 15%; text-align: center;">Actions</div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # Grid rows
+        for t in types:
+            tid, tname = t
+            col_row, col_act = st.columns([85, 15])
+            with col_row:
+                st.markdown(f"""
+                    <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+                        <div style="width: 23%; color: #64748b; font-family: monospace;">{tid}</div>
+                        <div style="width: 77%; font-weight: 600; color: #0f172a;">{tname}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col_act:
+                col_v, col_e, col_d = st.columns(3)
+                with col_v:
+                    # Redirects cleanly to standalone view_type_vault.py on click
+                    if st.button("👁️", key=f"view_t_{tid}", help=f"View category passwords for {tname}"):
+                        st.session_state.view_type_id = tid
+                        st.session_state.view_type_name = tname
+                        st.session_state.view_user_id = active_user_id
+                        st.session_state.view_user_name = selected_user
+                        st.session_state.page = 'view_type_vault'
+                        st.rerun()
+                with col_e:
+                    # Redirects cleanly to standalone edit_type.py on click
+                    if st.button("✏️", key=f"edit_t_{tid}", help=f"Edit {tname}"):
+                        st.session_state.edit_type_id = tid
+                        st.session_state.page = 'edit_type'
+                        st.rerun()
+                with col_d:
+                    # Triggers state-driven modal popup cleanly while hiding Add container
+                    if st.button("🗑️", key=f"del_t_{tid}", help=f"Delete {tname}"):
+                        st.session_state.delete_type_id = tid
+                        st.session_state.delete_type_name = tname
+                        st.session_state.delete_type_triggered = True
+                        st.session_state.show_add_type = False # Hides add container safely
+                        st.rerun()
+
+    # Execute State-driven delete modal popup cleanly outside page loops
+    if st.session_state.delete_type_triggered:
+        st.session_state.delete_type_triggered = False # resets trigger
+        show_delete_popup(st.session_state.delete_type_id, st.session_state.delete_type_name)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
     if st.button("⬅️ Back to Dashboard", use_container_width=True, key="types_back_btn"):

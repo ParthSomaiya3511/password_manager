@@ -4,14 +4,23 @@ import database as db
 import encryption as enc
 import time
 
+# Modal: Delete Sub-Category Popup (સેન્ટ્રલ ડાયલોગ પોપઅપ - લોડર વગર ઇન્સ્ટન્ટ ડીલીટ ફ્લો)
+@st.dialog("⚠️ Delete Sub-Category")
+def show_delete_popup(subtype_id, name):
+    st.write(f"Are you sure you want to permanently delete sub-category **{name}**? This will remove all associated credentials.")
+    col_yes, col_no = st.columns(2)
+    with col_yes:
+        if st.button("Yes, Delete", use_container_width=True, type="primary"):
+            # ઇન્સ્ટન્ટ ડેટાબેઝ ડીલીટ ક્વેરી એક્ઝિક્યુશન (લોડર વગર)
+            db.delete_password_subtype(subtype_id)
+            st.success("Sub-category deleted successfully.")
+            st.rerun()
+    with col_no:
+        if st.button("Cancel", use_container_width=True):
+            st.rerun()
+
 def render_manage_subtypes(check_pin_access):
-    st.markdown("""
-        <div style="text-align: center; margin-bottom: 20px;">
-            <span style="font-size: 3rem;">🏷️</span>
-            <h2 style="margin: 0; color: #1e293b; font-weight: 700;">Manage Sub-Categories (Sub-types)</h2>
-            <p style="color: #64748b; font-size: 0.95rem;">Configure user-specific password sub-category groups</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.title("🏷️ Manage Sub-Categories (Sub-types)")
     
     # Secure session pin verification check before loading page
     if not check_pin_access():
@@ -43,57 +52,33 @@ def render_manage_subtypes(check_pin_access):
         # Initialize page-level toggle states
         if 'show_add_subtype' not in st.session_state:
             st.session_state.show_add_subtype = False
-        if 'show_edit_subtype' not in st.session_state:
-            st.session_state.show_edit_subtype = False
-        if 'show_delete_subtype' not in st.session_state:
-            st.session_state.show_delete_subtype = False
+            
+        # State-driven trigger for Delete Popup
+        if 'delete_subtype_triggered' not in st.session_state:
+            st.session_state.delete_subtype_triggered = False
+        if 'delete_subtype_id' not in st.session_state:
+            st.session_state.delete_subtype_id = None
+        if 'delete_subtype_name' not in st.session_state:
+            st.session_state.delete_subtype_name = None
 
         sub_list = db.get_subtypes_by_type(active_type_id)
 
-        # Control Grid Row (Premium Button Layout)
-        col_btn1, col_btn2, col_btn3 = st.columns(3)
-        with col_btn1:
-            add_label = "❌ Close Add Panel" if st.session_state.show_add_subtype else "➕ Add New Sub-Category"
-            if st.button(add_label, use_container_width=True, type="primary"):
-                st.session_state.show_add_subtype = not st.session_state.show_add_subtype
-                st.session_state.show_edit_subtype = False
-                st.session_state.show_delete_subtype = False
-                st.rerun()
-                
-        with col_btn2:
-            edit_label = "❌ Close Edit Panel" if st.session_state.show_edit_subtype else "✏️ Edit Sub-Category"
-            if st.button(edit_label, use_container_width=True):
-                if not sub_list:
-                    st.warning("No sub-categories available to edit.")
-                else:
-                    st.session_state.show_edit_subtype = not st.session_state.show_edit_subtype
-                    st.session_state.show_add_subtype = False
-                    st.session_state.show_delete_subtype = False
-                    st.rerun()
-                    
-        with col_btn3:
-            del_label = "❌ Close Delete Panel" if st.session_state.show_delete_subtype else "🗑️ Delete Sub-Category"
-            if st.button(del_label, use_container_width=True):
-                if not sub_list:
-                    st.warning("No sub-categories available to delete.")
-                else:
-                    st.session_state.show_delete_subtype = not st.session_state.show_delete_subtype
-                    st.session_state.show_add_subtype = False
-                    st.session_state.show_edit_subtype = False
-                    st.rerun()
+        # ➕ Rectangular Add Button (Toggles on-page container directly below)
+        add_label = "❌ Close Add Panel" if st.session_state.show_add_subtype else "➕ Add New Sub-Category"
+        if st.button(add_label, use_container_width=True, type="primary"):
+            st.session_state.show_add_subtype = not st.session_state.show_add_subtype
+            st.rerun()
 
-        # --- DYNAMIC ON-PAGE CONTAINERS ---
-
-        # 1. ADD CONTAINER
+        # --- DYNAMIC ON-PAGE ADD CONTAINER ---
         if st.session_state.show_add_subtype:
             with st.container(border=True):
-                st.subheader(f"Add New Sub-Category under '{selected_type}' for '{selected_user}'")
-                sub_name = st.text_input("Sub-Category Label (e.g. AWS, Steam)")
+                st.subheader(f"Add New Sub-Category under '{selected_type}'")
+                sub_name = st.text_input("Sub-Category Label (e.g. AWS, Steam)", placeholder="Enter sub-category name...")
                 if st.button("Save Sub-Category", use_container_width=True, type="primary"):
                     if sub_name and active_user_id:
                         try:
                             with st.spinner("Saving Sub-Category..."):
-                                db.add_password_subtype(active_user_id, active_type_id, sub_name)
+                                db.add_password_subtype(active_user_id, active_type_id, sub_name.strip())
                                 time.sleep(2.0)
                             st.success(f"Added {sub_name} under category '{selected_type}'")
                             st.session_state.show_add_subtype = False
@@ -103,67 +88,71 @@ def render_manage_subtypes(check_pin_access):
                     else:
                         st.error("Please enter a sub-category label.")
 
-        # 2. EDIT CONTAINER
-        if st.session_state.show_edit_subtype and sub_list:
-            with st.container(border=True):
-                st.subheader(f"Edit Sub-Category (Belonging to {selected_type})")
-                selected_sub_edit = st.selectbox(
-                    "Select Sub-Category to Modify", 
-                    sub_list, 
-                    format_func=lambda x: f"ID {x[0]} - {x[1]}",
-                    key="subtype_edit_selectbox"
-                )
-                up_subname = st.text_input("Change Sub-Category Name", value=selected_sub_edit[1])
-                if st.button("Save Changes", use_container_width=True, type="primary"):
-                    if up_subname:
-                        with st.spinner("Saving changes..."):
-                            db.update_password_subtype(selected_sub_edit[0], active_type_id, up_subname)
-                            time.sleep(2.0)
-                        st.success("Sub-category updated successfully.")
-                        st.session_state.show_edit_subtype = False
-                        st.rerun()
-                    else:
-                        st.error("Please fill in all fields.")
-
-        # 3. DELETE CONTAINER
-        if st.session_state.show_delete_subtype and sub_list:
-            with st.container(border=True):
-                st.subheader(f"Delete Sub-Category (Belonging to {selected_type})")
-                selected_sub_del = st.selectbox(
-                    "Select Sub-Category to Delete", 
-                    sub_list, 
-                    format_func=lambda x: f"ID {x[0]} - {x[1]}",
-                    key="subtype_del_selectbox"
-                )
-                st.write(f"Are you sure you want to permanently delete sub-category **{selected_sub_del[1]}**? This will remove all associated credentials.")
-                
-                col_del_yes, col_del_no = st.columns(2)
-                with col_del_yes:
-                    if st.button("Yes, Delete", use_container_width=True, type="primary"):
-                        with st.spinner("Deleting sub-category..."):
-                            db.delete_password_subtype(selected_sub_del[0])
-                            time.sleep(2.0)
-                        st.success("Sub-category deleted successfully.")
-                        st.session_state.show_delete_subtype = False
-                        st.rerun()
-                with col_del_no:
-                    if st.button("Cancel", use_container_width=True):
-                        st.session_state.show_delete_subtype = False
-                        st.rerun()
-
-        # --- SUB-CATEGORY DIRECTORY TABLE ---
+        # --- SUB-CATEGORY ACTION-GRID DIRECTORY (View, Edit, Delete) ---
         st.markdown(f"**Active Sub-Categories under '{selected_type}'**")
         if not sub_list:
             st.info("No sub-categories configured yet.")
         else:
-            df_subtypes = pd.DataFrame(sub_list, columns=["Subtype ID", "Sub-Category Label"])
-            st.dataframe(df_subtypes, use_container_width=True, hide_index=True)
+            # Header Row
+            st.markdown("""
+                <div style="font-weight: 700; color: #475569; padding-bottom: 8px; border-bottom: 1px solid #cbd5e1; margin-bottom: 12px;">
+                    <div style="display: flex;">
+                        <div style="width: 20%;">Sub-Type ID</div>
+                        <div style="width: 65%;">Sub-Category Label</div>
+                        <div style="width: 15%; text-align: center;">Actions</div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+            # Grid rows
+            for s in sub_list:
+                sid, sname = s
+                col_row, col_act = st.columns([85, 15])
+                with col_row:
+                    st.markdown(f"""
+                        <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+                            <div style="width: 23%; color: #64748b; font-family: monospace;">{sid}</div>
+                            <div style="width: 77%; font-weight: 600; color: #0f172a;">{sname}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                with col_act:
+                    col_v, col_e, col_d = st.columns(3)
+                    with col_v:
+                        # Redirects cleanly to standalone view_subtype_vault.py on click
+                        if st.button("👁️", key=f"view_s_{sid}", help=f"View sub-category passwords for {sname}"):
+                            st.session_state.view_subtype_id = sid
+                            st.session_state.view_subtype_name = sname
+                            st.session_state.view_type_id = active_type_id
+                            st.session_state.view_type_name = selected_type
+                            st.session_state.view_user_id = active_user_id
+                            st.session_state.view_user_name = selected_user
+                            st.session_state.page = 'view_subtype_vault'
+                            st.rerun()
+                    with col_e:
+                        # Redirects cleanly to standalone edit_subtype.py on click
+                        if st.button("✏️", key=f"edit_s_{sid}", help=f"Edit {sname}"):
+                            st.session_state.edit_subtype_id = sid
+                            st.session_state.page = 'edit_subtype'
+                            st.rerun()
+                    with col_d:
+                        # Triggers state-driven modal popup cleanly while hiding Add container
+                        if st.button("🗑️", key=f"del_s_{sid}", help=f"Delete {sname}"):
+                            st.session_state.delete_subtype_id = sid
+                            st.session_state.delete_subtype_name = sname
+                            st.session_state.delete_subtype_triggered = True
+                            st.session_state.show_add_subtype = False # Hides add container safely
+                            st.rerun()
+
+        # Execute State-driven delete modal popup cleanly outside page loops
+        if st.session_state.delete_subtype_triggered:
+            st.session_state.delete_subtype_triggered = False # resets trigger
+            show_delete_popup(st.session_state.delete_subtype_id, st.session_state.delete_subtype_name)
 
         # "and save any account password" Direct Panel Wireframe Integration
         st.markdown("---")
         st.subheader(f"🔒 Directly Save New Account Password for {selected_user}")
-        st.write(f"Save a password securely linked to **{selected_user}** &rarr; **{selected_type}**")
-        
+        st.write("Save a password securely linked to any User, Category, and Sub-category:")
+
         # Sub-type dropdown
         sub_options = ["None"] + [s[1] for s in sub_list] if sub_list else ["None"]
         save_sub_opt = st.selectbox("Assign Sub-Category for Saved Password", sub_options, key="direct_save_sub_opt")
@@ -191,7 +180,7 @@ def render_manage_subtypes(check_pin_access):
                 elif resolved_type_id is None:
                     st.error("Error: Selected category type no longer exists. Please refresh.")
                 else:
-                    # Uses the verified session current_pin directly (removes redundant inputs)
+                    # Encrypt and write cleanly to passwords table referencing the fresh IDs with loader
                     with st.spinner("Encrypting and saving credentials securely..."):
                         encrypted_val = enc.encrypt_password(acc_pass, st.session_state.current_pin)
                         db.add_password(

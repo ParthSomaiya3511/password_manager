@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+
+  postgres:
+
+    image: postgres:16
+
+    container_name: password_db
+
+    restart: always
+
+    environment:
+      POSTGRES_DB: password_manager_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 12345678
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  password_manager:
+
+    build: .
+
+    container_name: password_manager_app
+
+    restart: always
+
+    depends_on:
+      - postgres
+
+    ports:
+      - "8501:8501"
+
+    environment:
+      DB_HOST: postgres
+      DB_NAME: password_manager_db
+      DB_USER: postgres
+      DB_PASSWORD: 12345678
+      DB_PORT: 5432
+
+volumes:
+
+  postgres_data:

@@ -10,15 +10,21 @@ import database as db
 import encryption as enc
 
 # ૧. ઓટોમેટીક મોડ્યુલ રીલોડર - રન ટાઇમ ચેન્જીસ અપ્લાય કરવા માટે
-for module_name in ['database', 'encryption', 'manage_users', 'manage_types', 'manage_subtypes', 'view_passwords', 'reset_pin', 'export_passwords', 'import_passwords', 'clear_data']:
+for module_name in ['database', 'encryption', 'manage_users', 'edit_user', 'manage_types', 'edit_type', 'manage_subtypes', 'edit_subtype', 'view_passwords', 'reset_pin', 'export_passwords', 'import_passwords', 'clear_data', 'view_user_vault', 'view_type_vault', 'view_subtype_vault']:
     if module_name in sys.modules:
         importlib.reload(sys.modules[module_name])
 
 # Import multi-page files cleanly
 import view_passwords
 import manage_users
+import edit_user
 import manage_types as type_page
+import edit_type
 import manage_subtypes
+import edit_subtype
+import view_user_vault
+import view_type_vault
+import view_subtype_vault
 import reset_pin
 import export_passwords
 import import_passwords
@@ -39,7 +45,7 @@ except Exception as e:
     st.error(f"PostgreSQL database connection failed: {e}")
     st.stop()
 
-# Visual Styling Setup (નાની બ્લેક રીંગને સંપૂર્ણપણે રીમુવ કરવા માટે)
+# Visual Styling Setup (તમારા બોર્ડર સ્કેચ કાર્ડ ડિઝાઇન મુજબ)
 st.markdown("""
 <style>
     /* Full-screen Centered Frosted Backdrop Spinner Overlay */
@@ -74,11 +80,23 @@ st.markdown("""
         z-index: 99999999 !important; /* Sits directly over active popup contents */
     }
     
-    /* Dialog/Popup Spacing Correction */
+    /* Full-Screen Edge-to-Edge Dialog Backdrop Mask (Removes any widescreen borders) */
+    div[data-testid="stModalContainer"] {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background-color: rgba(0, 0, 0, 0.5) !important; /* Exact color requested by the user */
+        backdrop-filter: none !important;                 /* No blur as specified */
+        z-index: 999999 !important;
+    }
+    
+    /* Dialog Popup Card Spacing Correction */
     div[data-testid="stDialog"] {
-        padding: 24px !important;
-        border-radius: 16px !important;
-        border: 1px solid #e2e8f0 !important;
+       
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15) !important;
     }
     div[data-testid="stDialog"] .stTextInput {
@@ -136,6 +154,34 @@ st.markdown("""
         display: none !important;
     }
     
+    /* Styling the inline action buttons (View, Edit, Delete) to be beautifully aligned, borderless, and centered */
+    div[data-testid="column"] button {
+        background-color: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important;
+        padding: 6px 12px !important;
+        margin: 0px 2px !important;
+        color: #334155 !important;
+        transition: all 0.2s ease-in-out !important;
+        display: inline-flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+    }
+    div[data-testid="column"] button:hover {
+        border-color: #3b82f6 !important;
+        background-color: #f8fafc !important;
+        color: #2563eb !important;
+    }
+    
+    /* Force all bordered card containers globally to match the high-contrast thick black SHARP border design (Rectangle shape) */
+    div[data-testid="stVerticalBlockBorder"] {
+        border: 3px solid #000000 !important; /* Thick black border */
+        border-radius: 0px !important;       /* Sharp rectangular corners */
+        background-color: #ffffff !important; /* Pure white background */
+        box-shadow: none !important;
+    }
+    
     @keyframes spinner-rotate {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
@@ -167,11 +213,34 @@ st.markdown("""
         padding: 10px 16px;
     }
     .cred-container {
-        border: 1px solid #cbd5e1;
-        background-color: #f8fafc;
+        border: 3px solid #000000 !important; /* Matches exactly */
+        background-color: #ffffff !important;
         padding: 16px;
-        border-radius: 8px;
+        border-radius: 0px !important;        /* Sharp rectangular corners */
         margin-bottom: 12px;
+    }
+    .st-emotion-cache-5qfegl {
+        display: inline-flex;
+        -webkit-box-align: center;
+        align-items: center;
+        -webkit-box-pack: center;
+        justify-content: center;
+        font-weight: 400;
+        /* padding: 0.25rem 0.75rem; */
+        border-radius: 0.5rem;
+        min-height: 2.5rem;
+        min-width: 2.5rem;
+        margin: 0px;
+        line-height: 1.6;
+        text-transform: none;
+        font-size: inherit;
+        font-family: inherit;
+        color: inherit;
+        width: 100%;
+        cursor: pointer;
+        user-select: none;
+        background-color: rgb(255, 255, 255);
+        border: 1px solid rgba(49, 51, 63, 0.2);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -254,8 +323,8 @@ def check_pin_access():
                     else:
                         st.session_state.pin_failed = True
         with col_back:
-            if st.button("Back to Menu", use_container_width=True, key="back_pin_btn_gate"):
-                navigate_to('dashboard')
+            # We don't render back-to-menu on main startup lock screen
+            st.info("Please verify the security PIN to access the application dashboard.")
         
         # If the PIN fails, show an emergency recovery option to reset the database PIN back to '1234'
         if st.session_state.get("pin_failed", False):
@@ -272,7 +341,12 @@ def check_pin_access():
     return True
 
 
-# Screen: Dashboard Homepage
+# ગ્લોબલ સ્ટાર્ટઅપ લોક સિક્યોરિટી ગેટ અપ્લાય
+if not check_pin_access():
+    st.stop()
+
+
+# Screen: Dashboard Homepage (Once authenticated successfully)
 def render_dashboard():
     st.markdown("""
         <div class="app-header">
@@ -318,18 +392,30 @@ def render_dashboard():
 if st.session_state.page == 'dashboard':
     render_dashboard()
 elif st.session_state.page == 'view_passwords':
-    view_passwords.render_view_passwords(check_pin_access)
+    view_passwords.render_view_passwords(lambda: True)
 elif st.session_state.page == 'manage_users':
     manage_users.render_manage_users()
+elif st.session_state.page == 'edit_user':
+    edit_user.render_edit_user()
+elif st.session_state.page == 'view_user_vault':
+    view_user_vault.render_view_user_vault()
 elif st.session_state.page == 'manage_types':
     type_page.render_manage_types()
+elif st.session_state.page == 'edit_type':
+    edit_type.render_edit_type()
+elif st.session_state.page == 'view_type_vault':
+    view_type_vault.render_view_type_vault() 
 elif st.session_state.page == 'manage_subtypes':
-    manage_subtypes.render_manage_subtypes(check_pin_access)
+    manage_subtypes.render_manage_subtypes(lambda: True)
+elif st.session_state.page == 'edit_subtype':
+    edit_subtype.render_edit_subtype()
+elif st.session_state.page == 'view_subtype_vault':
+    view_subtype_vault.render_view_subtype_vault() 
 elif st.session_state.page == 'reset_pin':
     reset_pin.render_reset_pin()
 elif st.session_state.page == 'export_passwords':
-    export_passwords.render_export_passwords(check_pin_access)
+    export_passwords.render_export_passwords(lambda: True)
 elif st.session_state.page == 'import_passwords':
-    import_passwords.render_import_passwords(check_pin_access)
+    import_passwords.render_import_passwords(lambda: True)
 elif st.session_state.page == 'clear_data':
     clear_data.render_clear_data()
