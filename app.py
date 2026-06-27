@@ -226,7 +226,7 @@ st.markdown("""
         -webkit-box-pack: center;
         justify-content: center;
         font-weight: 400;
-        /* padding: 0.25rem 0.75rem; */
+        padding: 0.25rem 0.75rem; 
         border-radius: 0.5rem;
         min-height: 2.5rem;
         min-width: 2.5rem;

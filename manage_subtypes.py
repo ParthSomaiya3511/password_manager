@@ -47,7 +47,7 @@ def render_manage_subtypes(check_pin_access):
         st.session_state.show_add_subtype = not st.session_state.show_add_subtype
         st.rerun()
 
-    # --- DYNAMIC ON-PAGE ADD CONTAINER (Dropdown is now correctly placed inside) ---
+    # --- DYNAMIC ON-PAGE ADD CONTAINER ---
     if st.session_state.show_add_subtype:
         with st.container(border=True):
             st.subheader("➕ Create New Sub-Category")
@@ -105,7 +105,7 @@ def render_manage_subtypes(check_pin_access):
         # Grid rows
         for s in sub_list:
             sid, uid, uname, tid, tname, sname = s
-            col_row, col_act = st.columns([85, 15])
+            col_row, col_act = st.columns([80, 20])
             with col_row:
                 st.markdown(f"""
                     <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">

@@ -48,7 +48,7 @@ def render_manage_types():
         st.session_state.show_add_type = not st.session_state.show_add_type
         st.rerun()
 
-    # --- DYNAMIC ON-PAGE ADD CONTAINER (Dropdown is now correctly placed inside) ---
+    # --- DYNAMIC ON-PAGE ADD CONTAINER ---
     if st.session_state.show_add_type:
         with st.container(border=True):
             st.subheader("➕ Create New Category Type")
@@ -98,7 +98,7 @@ def render_manage_types():
         # Grid rows
         for t in types:
             tid, uid, uname, tname = t
-            col_row, col_act = st.columns([85, 15])
+            col_row, col_act = st.columns([80, 20])
             with col_row:
                 st.markdown(f"""
                     <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
