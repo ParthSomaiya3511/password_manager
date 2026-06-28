@@ -302,29 +302,30 @@ def check_pin_access():
         show_pin = st.checkbox("👁️ Show PIN Input Plaintext (Prevents Autocomplete Overrides)", value=False, key="show_pin_toggle_gate")
         input_type = "default" if show_pin else "password"
 
+        # ... [Previous setup code in check_pin_access()] ...
+
         input_pin = st.text_input(
             "Enter Security Code:", 
             type=input_type, 
             key="login_pin_input_field"
         )
         
-        col_sub, col_back = st.columns(2)
-        with col_sub:
-            if st.button("Submit PIN", use_container_width=True, key="submit_pin_btn_gate"):
-                with st.spinner("Authenticating security code..."):
-                    correct_pin = db.get_master_pin()
-                    time.sleep(2.0)
-                    if input_pin == correct_pin:
-                        st.session_state.authenticated = True
-                        st.session_state.current_pin = input_pin
-                        st.session_state.pin_failed = False
-                        st.success("Access Granted")
-                        st.rerun()
-                    else:
-                        st.session_state.pin_failed = True
-        with col_back:
-            # We don't render back-to-menu on main startup lock screen
-            st.info("Please verify the security PIN to access the application dashboard.")
+        # Render the button 
+        if st.button("Submit PIN", use_container_width=True, key="submit_pin_btn_gate"):
+            with st.spinner("Authenticating security code..."):
+                correct_pin = db.get_master_pin()
+                time.sleep(2.0)
+                if input_pin == correct_pin:
+                    st.session_state.authenticated = True
+                    st.session_state.current_pin = input_pin
+                    st.session_state.pin_failed = False
+                    st.success("Access Granted")
+                    st.rerun()
+                else:
+                    st.session_state.pin_failed = True
+        
+        # This now renders directly underneath the Submit PIN button
+        st.info("Please verify the security PIN to access the application dashboard.")
         
         # If the PIN fails, show an emergency recovery option to reset the database PIN back to '1234'
         if st.session_state.get("pin_failed", False):
