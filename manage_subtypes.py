@@ -101,47 +101,48 @@ def render_manage_subtypes(check_pin_access):
     if not sub_list:
         st.info("No sub-categories configured yet.")
     else:
-        # Header Row
+        # Table Header matches your reference layout style
         st.markdown("""
-            <div style="font-weight: 700; color: #475569; padding-bottom: 8px; border-bottom: 1px solid #cbd5e1; margin-bottom: 12px;">
-                <div style="display: flex;">
-                    <div style="width: 25%;">User Profile</div>
-                    <div style="width: 25%;">Parent Category</div>
-                    <div style="width: 35%;">Sub-Category Label</div>
-                    <div style="width: 15%; text-align: center;">Access</div>
+            <div style="font-weight: 700; color: #475569; padding-bottom: 8px; border-bottom: 2px solid #cbd5e1; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 25%; color: #475569;">User Profile</div>
+                    <div style="width: 25%; color: #475569;">Parent Category</div>
+                    <div style="width: 35%; color: #475569;">Sub-Category Label</div>
+                    <div style="width: 15%; text-align: right; color: #475569; padding-right: 15px;">Access</div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
-        # Grid rows
+        # Body row configuration using borderless structure and inline buttons
         for s in sub_list:
             sid, uid, uname, tid, tname, sname = s
-            col_row, col_act = st.columns([80, 20])
+            col_row, col_act = st.columns([85, 15])
             with col_row:
                 st.markdown(f"""
-                    <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
-                        <div style="width: 29%; font-weight: 600; color: #475569;">{uname}</div>
-                        <div style="width: 29%; color: #334155;">{tname}</div>
-                        <div style="width: 42%; font-weight: 600; color: #0f172a;">{sname}</div>
+                    <div style="display: flex; align-items: center; padding: 6px 0;">
+                        <div style="width: 29.4%; font-weight: 600; color: #334155;">{uname}</div>
+                        <div style="width: 29.4%; color: #475569;">{tname}</div>
+                        <div style="width: 41.2%; font-weight: 600; color: #0f172a;">{sname}</div>
                     </div>
                 """, unsafe_allow_html=True)
             with col_act:
                 col_e, col_d = st.columns(2)
-                
                 with col_e:
                     # Redirects cleanly to standalone edit_subtype.py on click
-                    if st.button("✏️", key=f"edit_s_{sid}", help=f"Edit {sname}"):
+                    if st.button("✏️", key=f"edit_s_{sid}", help=f"Edit {sname}", use_container_width=True):
                         st.session_state.edit_subtype_id = sid
                         st.session_state.page = 'edit_subtype'
                         st.rerun()
                 with col_d:
                     # Triggers state-driven modal popup cleanly
-                    if st.button("🗑️", key=f"del_s_{sid}", help=f"Delete {sname}"):
+                    if st.button("🗑️", key=f"del_s_{sid}", help=f"Delete {sname}", use_container_width=True):
                         st.session_state.delete_subtype_id = sid
                         st.session_state.delete_subtype_name = sname
                         st.session_state.delete_subtype_triggered = True
                         st.session_state.show_add_subtype = False
                         st.rerun()
+            # Under-row separator divider line
+            st.markdown("<div style='border-bottom: 1px solid #f1f5f9; margin-top: 2px;'></div>", unsafe_allow_html=True)
 
     # Execute State-driven delete modal popup cleanly outside page loops
     if st.session_state.delete_subtype_triggered:
@@ -198,6 +199,9 @@ def render_manage_subtypes(check_pin_access):
                         )
                         time.sleep(2.0)
                     st.success("Credentials saved to vault successfully.")
+                    
+                    # Redirect cleanly to app.py dashboard home page
+                    st.session_state.page = 'dashboard'
                     st.rerun()
                 else:
                     st.error("Platform title, account username, and password fields are required.")
