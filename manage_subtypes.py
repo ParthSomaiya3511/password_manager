@@ -4,16 +4,15 @@ import database as db
 import encryption as enc
 import time
 
-# Modal: Delete Sub-Category Popup (સેન્ટ્રલ ડાયલોગ પોપઅપ તરીકે)
+# Modal: Delete Sub-Category Popup (સેન્ટ્રલ ડાયલોગ પોપઅપ તરીકે - ઇન્સ્ટન્ટ ડીલીટ ફ્લો)
 @st.dialog("⚠️ Delete Sub-Category")
 def show_delete_popup(subtype_id, name):
     st.write(f"Are you sure you want to permanently delete sub-category **{name}**? This will remove all associated credentials.")
     col_yes, col_no = st.columns(2)
     with col_yes:
         if st.button("Yes, Delete", use_container_width=True, type="primary"):
-            with st.spinner("Deleting sub-category..."):
-                db.delete_password_subtype(subtype_id)
-                time.sleep(2.0)
+            # Instant database execution without loader
+            db.delete_password_subtype(subtype_id)
             st.success("Sub-category deleted successfully.")
             st.rerun()
     with col_no:
@@ -70,15 +69,27 @@ def render_manage_subtypes(check_pin_access):
                     sub_name = st.text_input("Sub-Category Label (e.g. AWS, Steam)", placeholder="Enter sub-category name...")
                     if st.button("Save Sub-Category", use_container_width=True, type="primary"):
                         if sub_name:
-                            try:
-                                with st.spinner("Saving Sub-Category..."):
-                                    db.add_password_subtype(active_user_id, active_type_id, sub_name.strip())
-                                    time.sleep(2.0)
-                                st.success(f"Added {sub_name} under category '{selected_type}'")
-                                st.session_state.show_add_subtype = False
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error writing: {e}")
+                            clean_sub_name = sub_name.strip()
+                            
+                            # Validate if the sub-category already exists under this parent context
+                            existing_subtypes = db.get_password_subtypes()
+                            subtype_exists = any(
+                                s[1] == active_user_id and s[3] == active_type_id and s[5].lower() == clean_sub_name.lower()
+                                for s in existing_subtypes
+                            )
+                            
+                            if subtype_exists:
+                                st.error(f"Sub-category '{clean_sub_name}' already exists under the '{selected_type}' category context.")
+                            else:
+                                try:
+                                    with st.spinner("Saving Sub-Category..."):
+                                        db.add_password_subtype(active_user_id, active_type_id, clean_sub_name)
+                                        time.sleep(2.0)
+                                    st.success(f"Added {sub_name} under category '{selected_type}'")
+                                    st.session_state.show_add_subtype = False
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error writing: {e}")
                         else:
                             st.error("Please enter a sub-category label.")
 
@@ -97,7 +108,7 @@ def render_manage_subtypes(check_pin_access):
                     <div style="width: 25%;">User Profile</div>
                     <div style="width: 25%;">Parent Category</div>
                     <div style="width: 35%;">Sub-Category Label</div>
-                    <div style="width: 15%; text-align: center;">Actions</div>
+                    <div style="width: 15%; text-align: center;">Access</div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -115,18 +126,8 @@ def render_manage_subtypes(check_pin_access):
                     </div>
                 """, unsafe_allow_html=True)
             with col_act:
-                col_v, col_e, col_d = st.columns(3)
-                with col_v:
-                    # Redirects cleanly to standalone view_subtype_vault.py on click
-                    if st.button("👁️", key=f"view_s_{sid}", help=f"View sub-category passwords for {sname}"):
-                        st.session_state.view_subtype_id = sid
-                        st.session_state.view_subtype_name = sname
-                        st.session_state.view_type_id = tid
-                        st.session_state.view_type_name = tname
-                        st.session_state.view_user_id = uid
-                        st.session_state.view_user_name = uname
-                        st.session_state.page = 'view_subtype_vault'
-                        st.rerun()
+                col_e, col_d = st.columns(2)
+                
                 with col_e:
                     # Redirects cleanly to standalone edit_subtype.py on click
                     if st.button("✏️", key=f"edit_s_{sid}", help=f"Edit {sname}"):

@@ -49,15 +49,28 @@ def render_manage_users():
             email = st.text_input("Email Address", placeholder="Enter email address...")
             if st.button("Save New User", use_container_width=True, type="primary"):
                 if username and email:
-                    try:
-                        with st.spinner("Registering user profile..."):
-                            db.add_user(username.strip(), email.strip())
-                            time.sleep(2.0)
-                        st.success(f"Added User: {username}")
-                        st.session_state.show_add_user = False
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error registering user: {e}")
+                    clean_username = username.strip()
+                    clean_email = email.strip()
+                    
+                    # Fetch existing users to validate duplicates
+                    existing_users = db.get_users()
+                    username_exists = any(u[1].lower() == clean_username.lower() for u in existing_users)
+                    email_exists = any(u[2].lower() == clean_email.lower() for u in existing_users)
+                    
+                    if username_exists:
+                        st.error("A user profile with this username already exists.")
+                    elif email_exists:
+                        st.error("A user profile with this email address already exists.")
+                    else:
+                        try:
+                            with st.spinner("Registering user profile..."):
+                                db.add_user(clean_username, clean_email)
+                                time.sleep(2.0)
+                            st.success(f"Added User: {username}")
+                            st.session_state.show_add_user = False
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error registering user: {e}")
                 else:
                     st.error("All user fields must be provided.")
 
@@ -75,7 +88,7 @@ def render_manage_users():
                     <div style="width: 15%;">User ID</div>
                     <div style="width: 35%;">Username</div>
                     <div style="width: 35%;">Email Address</div>
-                    <div style="width: 15%; text-align: center;">Actions</div>
+                    <div style="width: 15%; text-align: center;">Access</div>
                 </div>
             </div>
         """, unsafe_allow_html=True)

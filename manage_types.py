@@ -3,16 +3,15 @@ import pandas as pd
 import database as db
 import time
 
-# Modal: Delete Category Popup (સેન્ટ્રલ ડાયલોગ પોપઅપ તરીકે)
+# Modal: Delete Category Popup (સેન્ટ્રલ ડાયલોગ પોપઅપ તરીકે - ઇન્સ્ટન્ટ ડીલીટ ફ્લો)
 @st.dialog("⚠️ Delete Category Type")
 def show_delete_popup(type_id, name):
     st.write(f"Are you sure you want to permanently delete category **{name}**? This will remove all associated sub-types and credentials.")
     col_yes, col_no = st.columns(2)
     with col_yes:
         if st.button("Yes, Delete", use_container_width=True, type="primary"):
-            with st.spinner("Deleting category..."):
-                db.delete_password_type(type_id)
-                time.sleep(2.0)
+            # Instant database execution without loader
+            db.delete_password_type(type_id)
             st.success("Category deleted successfully.")
             st.rerun()
     with col_no:
@@ -63,15 +62,27 @@ def render_manage_types():
                 name = st.text_input("Category Type Name (e.g. Enterprise, Personal)", placeholder="Enter category type name...")
                 if st.button("Save Category Type", use_container_width=True, type="primary"):
                     if name:
-                        try:
-                            with st.spinner("Saving Category Type..."):
-                                db.add_password_type(active_user_id, name.strip())
-                                time.sleep(2.0)
-                            st.success(f"Category added: {name} under {selected_user}")
-                            st.session_state.show_add_type = False
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Failed to add: {e}")
+                        clean_name = name.strip()
+                        
+                        # Validate if the category already exists for the selected user profile context
+                        existing_types = db.get_password_types()
+                        type_exists = any(
+                            t[1] == active_user_id and t[3].lower() == clean_name.lower() 
+                            for t in existing_types
+                        )
+                        
+                        if type_exists:
+                            st.error(f"Category '{clean_name}' already exists for user profile '{selected_user}'.")
+                        else:
+                            try:
+                                with st.spinner("Saving Category Type..."):
+                                    db.add_password_type(active_user_id, clean_name)
+                                    time.sleep(2.0)
+                                st.success(f"Category added: {name} under {selected_user}")
+                                st.session_state.show_add_type = False
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Failed to add: {e}")
                     else:
                         st.error("Please enter a category name.")
 
@@ -90,7 +101,7 @@ def render_manage_types():
                     <div style="width: 25%;">User Profile</div>
                     <div style="width: 15%;">Type ID</div>
                     <div style="width: 45%;">Category Label</div>
-                    <div style="width: 15%; text-align: center;">Actions</div>
+                    <div style="width: 15%; text-align: center;">Access</div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -108,16 +119,8 @@ def render_manage_types():
                     </div>
                 """, unsafe_allow_html=True)
             with col_act:
-                col_v, col_e, col_d = st.columns(3)
-                with col_v:
-                    # Redirects cleanly to standalone view_type_vault.py on click
-                    if st.button("👁️", key=f"view_t_{tid}", help=f"View decrypted category passwords for {tname}"):
-                        st.session_state.view_type_id = tid
-                        st.session_state.view_type_name = tname
-                        st.session_state.view_user_id = uid
-                        st.session_state.view_user_name = uname
-                        st.session_state.page = 'view_type_vault'
-                        st.rerun()
+                col_e, col_d = st.columns(2)
+                
                 with col_e:
                     # Redirects cleanly to standalone edit_type.py on click
                     if st.button("✏️", key=f"edit_t_{tid}", help=f"Edit {tname}"):
