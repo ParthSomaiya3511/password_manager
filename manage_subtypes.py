@@ -101,14 +101,14 @@ def render_manage_subtypes(check_pin_access):
     if not sub_list:
         st.info("No sub-categories configured yet.")
     else:
-        # Table Header matches your reference layout style
+        # Borderless Table Header Layout
         st.markdown("""
             <div style="font-weight: 700; color: #475569; padding-bottom: 8px; border-bottom: 2px solid #cbd5e1; margin-bottom: 12px;">
                 <div style="display: flex; align-items: center;">
                     <div style="width: 25%; color: #475569;">User Profile</div>
                     <div style="width: 25%; color: #475569;">Parent Category</div>
                     <div style="width: 35%; color: #475569;">Sub-Category Label</div>
-                    <div style="width: 15%; text-align: right; color: #475569; padding-right: 15px;">Access</div>
+                    <div style="width: 25%; text-align: right; color: #475569; padding-right: 25px;">Access</div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -116,17 +116,23 @@ def render_manage_subtypes(check_pin_access):
         # Body row configuration using borderless structure and inline buttons
         for s in sub_list:
             sid, uid, uname, tid, tname, sname = s
-            col_row, col_act = st.columns([85, 15])
+            col_row, col_act = st.columns([75, 25])
             with col_row:
                 st.markdown(f"""
                     <div style="display: flex; align-items: center; padding: 6px 0;">
-                        <div style="width: 29.4%; font-weight: 600; color: #334155;">{uname}</div>
-                        <div style="width: 29.4%; color: #475569;">{tname}</div>
-                        <div style="width: 41.2%; font-weight: 600; color: #0f172a;">{sname}</div>
+                        <div style="width: 33.3%; font-weight: 600; color: #334155;">{uname}</div>
+                        <div style="width: 33.3%; color: #475569;">{tname}</div>
+                        <div style="width: 33.3%; font-weight: 600; color: #0f172a;">{sname}</div>
                     </div>
                 """, unsafe_allow_html=True)
             with col_act:
-                col_e, col_d = st.columns(2)
+                col_v, col_e, col_d = st.columns(3)
+                with col_v:
+                    # Reroutes cleanly to standalone view_subtype_vault.py on click
+                    if st.button("👁️", key=f"view_s_{sid}", help=f"View sub-category details", use_container_width=True):
+                        st.session_state.view_subtype_id = sid
+                        st.session_state.page = 'view_subtype_vault'
+                        st.rerun()
                 with col_e:
                     # Redirects cleanly to standalone edit_subtype.py on click
                     if st.button("✏️", key=f"edit_s_{sid}", help=f"Edit {sname}", use_container_width=True):

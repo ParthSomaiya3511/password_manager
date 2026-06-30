@@ -94,14 +94,14 @@ def render_manage_types():
     if not types:
         st.info("No custom category types defined yet.")
     else:
-        # Header Row
+        # Borderless Table Header Layout
         st.markdown("""
-            <div style="font-weight: 700; color: #475569; padding-bottom: 8px; border-bottom: 1px solid #cbd5e1; margin-bottom: 12px;">
-                <div style="display: flex;">
-                    <div style="width: 25%;">User Profile</div>
-                    <div style="width: 15%;">Type ID</div>
-                    <div style="width: 45%;">Category Label</div>
-                    <div style="width: 15%; text-align: center;">Access</div>
+            <div style="font-weight: 700; color: #475569; padding-bottom: 8px; border-bottom: 2px solid #cbd5e1; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 25%; color: #475569;">User Profile</div>
+                    <div style="width: 15%; color: #475569;">Type ID</div>
+                    <div style="width: 35%; color: #475569;">Category Label</div>
+                    <div style="width: 25%; text-align: right; color: #475569; padding-right: 25px;">Access</div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -109,32 +109,39 @@ def render_manage_types():
         # Grid rows
         for t in types:
             tid, uid, uname, tname = t
-            col_row, col_act = st.columns([80, 20])
+            col_row, col_act = st.columns([75, 25])
             with col_row:
                 st.markdown(f"""
-                    <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
-                        <div style="width: 29%; font-weight: 600; color: #475569;">{uname}</div>
-                        <div style="width: 18%; color: #64748b; font-family: monospace;">{tid}</div>
-                        <div style="width: 53%; font-weight: 600; color: #0f172a;">{tname}</div>
+                    <div style="display: flex; align-items: center; padding: 6px 0;">
+                        <div style="width: 33.3%; font-weight: 600; color: #334155;">{uname}</div>
+                        <div style="width: 20%; color: #475569; font-family: monospace;">{tid}</div>
+                        <div style="width: 46.7%; font-weight: 600; color: #0f172a;">{tname}</div>
                     </div>
                 """, unsafe_allow_html=True)
             with col_act:
-                col_e, col_d = st.columns(2)
-                
+                col_v, col_e, col_d = st.columns(3)
+                with col_v:
+                    # Reroutes cleanly to standalone view_type_vault.py on click
+                    if st.button("👁️", key=f"view_t_{tid}", help=f"View category details", use_container_width=True):
+                        st.session_state.view_type_id = tid
+                        st.session_state.page = 'view_type_vault'
+                        st.rerun()
                 with col_e:
-                    # Redirects cleanly to standalone edit_type.py on click
-                    if st.button("✏️", key=f"edit_t_{tid}", help=f"Edit {tname}"):
+                    # Redirects cleanly to edit_type.py on click
+                    if st.button("✏️", key=f"edit_t_{tid}", help=f"Edit {tname}", use_container_width=True):
                         st.session_state.edit_type_id = tid
                         st.session_state.page = 'edit_type'
                         st.rerun()
                 with col_d:
                     # Triggers state-driven modal popup cleanly while hiding Add container
-                    if st.button("🗑️", key=f"del_t_{tid}", help=f"Delete {tname}"):
+                    if st.button("🗑️", key=f"del_t_{tid}", help=f"Delete {tname}", use_container_width=True):
                         st.session_state.delete_type_id = tid
                         st.session_state.delete_type_name = tname
                         st.session_state.delete_type_triggered = True
                         st.session_state.show_add_type = False
                         st.rerun()
+            # Under-row separator divider line
+            st.markdown("<div style='border-bottom: 1px solid #f1f5f9; margin-top: 2px;'></div>", unsafe_allow_html=True)
 
     # Execute State-driven delete modal popup cleanly outside page loops
     if st.session_state.delete_type_triggered:
