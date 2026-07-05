@@ -52,19 +52,21 @@ def render_manage_users():
                     clean_username = username.strip()
                     clean_email = email.strip()
                     
-                    # Validate if email contains the '@' symbol
-                    if "@" not in clean_email:
-                        st.error("Please enter a valid email address containing the '@' symbol.")
+                    # 1. Format validation: Email contains both '@' and '.'
+                    if "@" not in clean_email or "." not in clean_email:
+                        st.error("Please enter a valid email address (must contain both '@' and '.' characters).")
+                    elif len(clean_username) < 3:
+                        st.error("Username must be at least 3 characters long.")
                     else:
-                        # Fetch existing users to validate duplicates
+                        # 2. Duplicate validation (Case-insensitive)
                         existing_users = db.get_users()
                         username_exists = any(u[1].lower() == clean_username.lower() for u in existing_users)
                         email_exists = any(u[2].lower() == clean_email.lower() for u in existing_users)
                         
                         if username_exists:
-                            st.error("A user profile with this username already exists.")
+                            st.error(f"A user profile with the username '{clean_username}' already exists.")
                         elif email_exists:
-                            st.error("A user profile with this email address already exists.")
+                            st.error(f"A user profile with the email address '{clean_email}' already exists.")
                         else:
                             try:
                                 with st.spinner("Registering user profile..."):
@@ -80,12 +82,12 @@ def render_manage_users():
 
     users = db.get_users()
 
-    # --- USER DIRECTORY VIEW TABLE (In-Line Action Grid) ---
+    # --- USER DIRECTORY VIEW TABLE ---
     st.markdown('<div class="section-label">Active Profiles Directory</div>', unsafe_allow_html=True)
     if not users:
         st.info("No active users present.")
     else:
-        # Header Row
+        # Header Row (Flat borderless table styling)
         st.markdown("""
             <div style="font-weight: 700; color: #475569; padding-bottom: 8px; border-bottom: 1px solid #cbd5e1; margin-bottom: 12px;">
                 <div style="display: flex;">
@@ -112,32 +114,29 @@ def render_manage_users():
             with col_act:
                 col_v, col_e, col_d = st.columns(3)
                 with col_v:
-                    # Redirects cleanly to standalone view_user_vault.py on click
-                    if st.button("👁️", key=f"view_u_{uid}", help=f"View decrypted credentials for {uname}"):
+                    if st.button("👁️", key=f"view_u_{uid}", help=f"View decrypted credentials for {uname}", use_container_width=True):
                         st.session_state.view_user_id = uid
                         st.session_state.view_user_name = uname
                         st.session_state.page = 'view_user_vault'
                         st.rerun()
                 with col_e:
-                    # Redirects cleanly to standalone edit_user.py on click
-                    if st.button("✏️", key=f"edit_u_{uid}", help=f"Edit {uname}"):
+                    if st.button("✏️", key=f"edit_u_{uid}", help=f"Edit {uname}", use_container_width=True):
                         st.session_state.edit_user_id = uid
                         st.session_state.page = 'edit_user'
                         st.rerun()
                 with col_d:
-                    # Triggers state-driven modal popup cleanly while hiding Add container
-                    if st.button("🗑️", key=f"del_u_{uid}", help=f"Delete {uname}"):
+                    if st.button("🗑️", key=f"del_u_{uid}", help=f"Delete {uname}", use_container_width=True):
                         st.session_state.delete_user_id = uid
                         st.session_state.delete_user_name = uname
                         st.session_state.delete_user_triggered = True
-                        st.session_state.show_add_user = False # Hides add container safely
+                        st.session_state.show_add_user = False
                         st.rerun()
 
-    # Execute State-driven delete modal popup cleanly outside page loops
     if st.session_state.delete_user_triggered:
-        st.session_state.delete_user_triggered = False # resets trigger
+        st.session_state.delete_user_triggered = False
         show_delete_popup(st.session_state.delete_user_id, st.session_state.delete_user_name)
 
+    st.markdown("<br>", unsafe_allow_html=True)
     if st.button("⬅️ Back to Dashboard", use_container_width=True, key="user_back_btn"):
         st.session_state.page = 'dashboard'
         st.rerun()

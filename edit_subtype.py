@@ -27,7 +27,7 @@ def render_edit_subtype():
     """, unsafe_allow_html=True)
 
     st.title("✏️ Edit Sub-Category")
-    st.write("Modify the Sub-Category parameter parameters below:")
+    st.write("Modify the Sub-Category parameters below:")
     st.write("---")
 
     target_id = st.session_state.get('edit_subtype_id')
@@ -81,15 +81,29 @@ def render_edit_subtype():
             with col_save:
                 if st.button("Save Changes", use_container_width=True, type="primary"):
                     if new_name:
-                        with st.spinner("Saving changes in database..."):
-                            # Update parameters in database safely
-                            db.update_password_subtype(sid, new_type_id, new_name.strip())
-                            time.sleep(2.0)
-                        st.success("Sub-category updated successfully.")
-                        st.session_state.page = 'manage_subtypes'
-                        st.rerun()
+                        clean_name = new_name.strip()
+                        
+                        # 1. Duplicate Validation (excludes own sid)
+                        subtype_exists = any(
+                            s[1] == uid and s[3] == new_type_id and s[0] != sid and s[5].lower() == clean_name.lower()
+                            for s in subtypes
+                        )
+                        
+                        if subtype_exists:
+                            st.error(f"Sub-category '{clean_name}' already exists under the selected parent category type.")
+                        else:
+                            try:
+                                with st.spinner("Saving changes in database..."):
+                                    # Update parameters in database safely
+                                    db.update_password_subtype(sid, new_type_id, clean_name)
+                                    time.sleep(2.0)
+                                st.success("Sub-category updated successfully.")
+                                st.session_state.page = 'manage_subtypes'
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Database write error: {e}")
                     else:
-                        st.error("Please fill in all fields.")
+                        st.error("Sub-category name cannot be empty.")
             with col_cancel:
                 if st.button("Cancel", use_container_width=True):
                     st.session_state.page = 'manage_subtypes'

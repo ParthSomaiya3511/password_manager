@@ -96,11 +96,11 @@ def render_manage_types():
     else:
         # Borderless Table Header Layout
         st.markdown("""
-            <div style="font-weight: 700; color: #475569; padding-bottom: 8px; border-bottom: 2px solid #cbd5e1; margin-bottom: 12px;">
+            <div style="font-weight: 700; color: #475569; padding-bottom: 8px; border-bottom: 1px solid #cbd5e1; margin-bottom: 12px;">
                 <div style="display: flex; align-items: center;">
                     <div style="width: 25%; color: #475569;">User Profile</div>
                     <div style="width: 15%; color: #475569;">Type ID</div>
-                    <div style="width: 35%; color: #475569;">Category Label</div>
+                    <div style="width: 45%; color: #475569;">Category Label</div>
                     <div style="width: 25%; text-align: right; color: #475569; padding-right: 25px;">Access</div>
                 </div>
             </div>
@@ -112,7 +112,7 @@ def render_manage_types():
             col_row, col_act = st.columns([75, 25])
             with col_row:
                 st.markdown(f"""
-                    <div style="display: flex; align-items: center; padding: 6px 0;">
+                    <div style="display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
                         <div style="width: 33.3%; font-weight: 600; color: #334155;">{uname}</div>
                         <div style="width: 20%; color: #475569; font-family: monospace;">{tid}</div>
                         <div style="width: 46.7%; font-weight: 600; color: #0f172a;">{tname}</div>
@@ -140,8 +140,6 @@ def render_manage_types():
                         st.session_state.delete_type_triggered = True
                         st.session_state.show_add_type = False
                         st.rerun()
-            # Under-row separator divider line
-            st.markdown("<div style='border-bottom: 1px solid #f1f5f9; margin-top: 2px;'></div>", unsafe_allow_html=True)
 
     # Execute State-driven delete modal popup cleanly outside page loops
     if st.session_state.delete_type_triggered:

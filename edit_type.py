@@ -64,14 +64,28 @@ def render_edit_type():
             with col_save:
                 if st.button("Save Changes", use_container_width=True, type="primary"):
                     if new_name:
-                        with st.spinner("Saving changes in database..."):
-                            db.update_password_type(tid, new_name.strip())
-                            time.sleep(2.0)
-                        st.success("Category updated successfully.")
-                        st.session_state.page = 'manage_types'
-                        st.rerun()
+                        clean_name = new_name.strip()
+                        
+                        # 1. Duplicate Validation (excludes own tid)
+                        type_exists = any(
+                            t[1] == uid and t[0] != tid and t[3].lower() == clean_name.lower()
+                            for t in types
+                        )
+                        
+                        if type_exists:
+                            st.error(f"Category '{clean_name}' already exists for user profile '{uname}'.")
+                        else:
+                            try:
+                                with st.spinner("Saving changes in database..."):
+                                    db.update_password_type(tid, clean_name)
+                                    time.sleep(2.0)
+                                st.success("Category updated successfully.")
+                                st.session_state.page = 'manage_types'
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Database write error: {e}")
                     else:
-                        st.error("Please fill in all fields.")
+                        st.error("Category name cannot be empty.")
             with col_cancel:
                 if st.button("Cancel", use_container_width=True):
                     st.session_state.page = 'manage_types'
